@@ -1,0 +1,8 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start the service
+# s6-overlay docs: https://github.com/just-containers/s6-overlay
+# ==============================================================================
+
+## Run your program
+exec /usr/bin/ddns-acme/run.sh

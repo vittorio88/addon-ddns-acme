@@ -1,0 +1,50 @@
+# https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
+name: DDNS-ACME add-on
+version: "1.0.0"
+slug: ddns-acme
+description: DDNS-ACME add-on
+url: "https://github.com/vittorio88/addon-ddns-acme/tree/main/ddns-acme"
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+init: false
+startup: "services"
+hassio_api: true
+hassio_role: "default"
+map:
+  - ssl:rw
+options:
+  acme_provider:
+    provider_name: "lets_encrypt"
+    accept_terms: false
+    certfile: "fullchain.pem"
+    keyfile: "privkey.pem"
+    renew_wait: 43200
+  dns_provider:    
+    provider_name: "dynu"
+    dns_api_token: null
+  ipv4_fixed: ""
+  ipv6_fixed: ""
+  ip_update_wait_seconds: 300
+  domains: [null]
+  aliases: []
+schema:
+  acme_provider:
+    provider_name: "str"
+    accept_terms: "bool"
+    certfile: "str"
+    keyfile: "str"
+    renew_wait: "int"
+  dns_provider:
+    provider_name: "str"
+    dns_api_token: "str"
+  ipv4_fixed: "str?"
+  ipv6_fixed: "str?"
+  ip_update_wait_seconds: "int"
+  domains: ["str"]
+  aliases:
+    [{domain: "str", "alias": "str"}]
+
