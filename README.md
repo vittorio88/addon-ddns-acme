@@ -26,4 +26,4 @@ and customizing ddns.sh and acme.sh
 
 ## About
 
-[DDNS-ACME][ddns-acme] Integrated determine public addresses, update DNS records, and generate ACME certificate from Lets Encrypt.
+[DDNS-ACME](ddns-acme) Integrated determine public addresses, update DNS records, and generate ACME certificate from Lets Encrypt.
