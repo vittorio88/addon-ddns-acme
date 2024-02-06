@@ -13,7 +13,6 @@ arch:
 init: false
 startup: "services"
 hassio_api: true
-hassio_role: "default"
 map:
   - ssl:rw
 options:
