@@ -1,4 +1,4 @@
 # https://developers.home-assistant.io/docs/add-ons/repository#repository-configuration
 name: DDNS-ACME Home Assistant add-on repository
-url: 'https://github.com/vittorio88/ddns-acme'
+url: 'https://github.com/vittorio88/addon-ddns-acme'
 maintainer: Vittorio Alfieri <vittorio88@gmail.com>
