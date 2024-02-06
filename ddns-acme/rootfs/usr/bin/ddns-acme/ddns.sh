@@ -35,7 +35,7 @@ function hassio_determine_ipv4_address(){
     else  # Ask external server for my IPv4 address, since HA probably doesn't know it.
         ipv4_queried=$(curl -s -f -m 10 "${QUERY_URL_IPV4}")
         if [[ ${ipv4_queried} == *.* ]]; then
-            bashio::log.info "According to: ${QUERY_URL_IPV4} , IPv4 address is ${ipv4_queried}"
+            bashio::log.info "[${FUNCNAME[0]}]" "According to: ${QUERY_URL_IPV4} , IPv4 address is ${ipv4_queried}"
             current_ipv4_address=${ipv4_queried}
             return 0
         else
@@ -65,7 +65,7 @@ function hassio_determine_ipv6_address(){
             # Skip non-global addresses
             if [[ ${addr} != fe80:* && ${addr} != fc* && ${addr} != fd* ]]; then
                 current_ipv6_address=${addr%/*}
-                bashio::log.info "According to the HA Supervisor API, IPv6 address is ${current_ipv6_address}"
+                bashio::log.info "[${FUNCNAME[0]}]" "According to the HA Supervisor API, IPv6 address is ${current_ipv6_address}"
                 return 0
             fi
         done
