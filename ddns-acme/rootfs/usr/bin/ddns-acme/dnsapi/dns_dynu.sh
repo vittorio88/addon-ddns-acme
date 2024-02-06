@@ -275,7 +275,7 @@ _dynu_rest() {
 
   local ret=$?
   if [ "$ret" != "0" ]; then
-    bashio::log.warn "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "return code is: $ret"
+    bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "return code is: $ret"
     return 1
   fi
   bashio::log.trace "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "\nresponse='$(echo $response)' \n"
