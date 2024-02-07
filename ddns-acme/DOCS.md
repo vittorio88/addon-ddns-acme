@@ -5,10 +5,10 @@
 Follow these steps to get the add-on installed on your system:
 
 1. Navigate in your Home Assistant frontend to **Supervisor** -> **Add-on Store**.
-2. Find the "DynuDNS" add-on and click it.
+2. Find the "DDNS-ACME" add-on and click it.
 3. Click on the "INSTALL" button.
 
-## How to use
+## How to use [dynu free]
 
 1. Visit [dynu.com](https://www.dynu.com) and create an account by logging in through any of the available account services (Google, Github, Twitter, Persona, Reddit).
 2. In the `Control Panel` area, click on the `DDNS services` section, click `Add`. Choose amongst the available domains, and type the name of the subdomain .
