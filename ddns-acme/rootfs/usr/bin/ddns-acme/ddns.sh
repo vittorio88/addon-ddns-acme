@@ -47,37 +47,9 @@ function hassio_determine_ipv4_address(){
     
 }
 
-function hassio_determine_ipv6_address(){
-
-    # Determine IPv6 Address
-    if [[ -n "$IPV6_FIXED" ]]; then # use fixed IPv6 address
-        bashio::log.info "Using parsed argument for fixed IPv6: ${IPV6_FIXED}"
-        if [[ ${IPV6_FIXED} == *:* ]]; then
-            current_ipv6_address=${IPV6_FIXED}
-            return 0
-        else
-            bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears the Add-On Argument: ipv6_fixed is not an IP address "
-            exit 1
-        fi
-    else  # Get IPv6 address from HA API, since add-on container does not have IPv6 address.
-        bashio::cache.flush_all
-        for addr in $(bashio::network.ipv6_address); do
-            # Skip non-global addresses
-            if [[ ${addr} != fe80:* && ${addr} != fc* && ${addr} != fd* ]]; then
-                current_ipv6_address=${addr%/*}
-                bashio::log.info "[${FUNCNAME[0]}]" "According to the HA Supervisor API, IPv6 address is ${current_ipv6_address}"
-                return 0
-            fi
-        done
-        return 1
-    fi
-    return 1
-}
-
 function hassio_get_config_variables(){
 
     if bashio::config.has_value "ipv4_fixed"; then IPV4_FIXED=$(bashio::config 'ipv4_fixed'); else IPV4_FIXED=""; fi
-    if bashio::config.has_value "ipv6_fixed"; then IPV6_FIXED=$(bashio::config 'ipv6_fixed'); else IPV6_FIXED=""; fi
     if bashio::config.has_value "aliases"; then ALIASES=$(bashio::config 'aliases'); else ALIASES=""; fi
 
     DNS_PROVIDER_NAME=$(bashio::config 'dns_provider.provider_name')

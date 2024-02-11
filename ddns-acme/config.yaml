@@ -26,7 +26,6 @@ options:
     provider_name: "dynu"
     dns_api_token: null
   ipv4_fixed: ""
-  ipv6_fixed: ""
   ip_update_wait_seconds: 300
   domains: [null]
   aliases: []
@@ -41,7 +40,6 @@ schema:
     provider_name: "str"
     dns_api_token: "str"
   ipv4_fixed: "str?"
-  ipv6_fixed: "str?"
   ip_update_wait_seconds: "int"
   domains: ["str"]
   aliases:

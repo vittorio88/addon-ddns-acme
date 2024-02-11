@@ -37,14 +37,9 @@ function update_dns_ip_addresses(){
         return 1
     fi
 
-    declare current_ipv6_address
-    if ! hassio_determine_ipv6_address; then
-        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv6 address"
-    fi
-
     # Update each domain
     for domain in ${DOMAINS}; do
-        if ! dns_dynu_update_ipv4_ipv6 "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
+        if ! dns_dynu_update_ipv4 "$domain" "$current_ipv4_address"; then
             bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update DNS IP address records for domain: $domain"
             return 1
         fi

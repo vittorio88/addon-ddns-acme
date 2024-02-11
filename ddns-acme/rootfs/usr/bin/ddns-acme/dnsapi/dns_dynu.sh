@@ -10,10 +10,9 @@ declare current_domain_config
 declare domain_id
 
 ########  Public functions #####################
-function dns_dynu_update_ipv4_ipv6() {
+function dns_dynu_update_ipv4() {
     local domain="$1"
     local current_ipv4_address="$2"
-    local current_ipv6_address="$3"
 
     if ! _get_domain_config "$domain"; then
       bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "DynuDNS _get_domain_config API call failed."
@@ -21,7 +20,6 @@ function dns_dynu_update_ipv4_ipv6() {
     fi
 
     dns_configured_ipv4_address=$(echo "$current_domain_config" | jq -r '.ipv4Address')
-    dns_configured_ipv6_address=$(echo "$current_domain_config" | jq -r '.ipv6Address')
     statusCode=$(echo "$current_domain_config" | jq '.statusCode')
 
     # Create new domain configuration and replace IPv4 and IPv6 addresses
@@ -30,13 +28,10 @@ function dns_dynu_update_ipv4_ipv6() {
     if  [[ "$current_ipv4_address" == *.* ]]; then # Replace ipv4Address and ipv4 fields
         new_domain_config=$(echo "$new_domain_config" | jq ".ipv4Address = \"$current_ipv4_address\" | .ipv4 = true")
     fi
-    if  [[ "$current_ipv6_address" == *:* ]]; then # Replace ipv6Address and ipv6 fields
-        new_domain_config=$(echo "$new_domain_config" | jq ".ipv6Address = \"$current_ipv6_address\" | .ipv6 = true")
-    fi
 
     # Update Domain config if it's different
     bashio::log.info "Updating Dynu DNS: $domain IP addresses"
-    if [[ "$dns_configured_ipv4_address" != "$current_ipv4_address" ]] || [[ "$dns_configured_ipv6_address" != "$current_ipv6_address" ]] ; then
+    if [[ "$dns_configured_ipv4_address" != "$current_ipv4_address" ]] ; then
 
       # Set the new domain configuration with updated IP addresses.
       if ! _set_domain_config "$domain" "$new_domain_config"; then
