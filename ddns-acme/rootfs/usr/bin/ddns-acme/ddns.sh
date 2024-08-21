@@ -21,57 +21,94 @@ function is_domain() {
 }
 
 function hassio_determine_ipv4_address(){
-
-    # Determine IPv4 Address
-    if [[ -n "$IPV4_FIXED" ]]; then # use fixed IPv4 address
-        bashio::log.info "Using parsed argument for fixed IPv4: ${IPV4_FIXED}"
-        if [[ ${IPV4_FIXED} == *.* ]]; then
-            current_ipv4_address=${IPV4_FIXED}
+    case "$IPV4_UPDATE_METHOD" in
+        "skip update")
+            bashio::log.info "Skipping IPv4 address update"
             return 0
-        else
-            bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears the Add-On Argument: ipv4_fixed is not an IP address"
-            exit 1
-        fi
-    else  # Ask external server for my IPv4 address, since HA probably doesn't know it.
-        ipv4_queried=$(curl -s -f -m 10 "${QUERY_URL_IPV4}")
-        if [[ ${ipv4_queried} == *.* ]]; then
-            bashio::log.info "[${FUNCNAME[0]}]" "According to: ${QUERY_URL_IPV4} , IPv4 address is ${ipv4_queried}"
-            current_ipv4_address=${ipv4_queried}
-            return 0
-        else
-            bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears ipv4_queried: ${ipv4_queried} returned from ${QUERY_URL_IPV4} is not an IP address"
+            ;;
+        "query external server")
+            ipv4_queried=$(curl -s -f -m 10 "${QUERY_URL_IPV4}")
+            if [[ ${ipv4_queried} == *.* ]]; then
+                bashio::log.info "[${FUNCNAME[0]}]" "According to: ${QUERY_URL_IPV4} , IPv4 address is ${ipv4_queried}"
+                current_ipv4_address=${ipv4_queried}
+                return 0
+            else
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears ipv4_queried: ${ipv4_queried} returned from ${QUERY_URL_IPV4} is not an IP address"
+                return 1
+            fi
+            ;;
+        "get interface address via bashio")
+            current_ipv4_address=$(bashio::network.ipv4_address)
+            if [[ ${current_ipv4_address} == *.* ]]; then
+                bashio::log.info "[${FUNCNAME[0]}]" "IPv4 address from bashio: ${current_ipv4_address}"
+                return 0
+            else
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Failed to get valid IPv4 address from bashio"
+                return 1
+            fi
+            ;;
+        "use fixed address")
+            if [[ -n "$IPV4_FIXED" && ${IPV4_FIXED} == *.* ]]; then
+                bashio::log.info "Using fixed IPv4 address: ${IPV4_FIXED}"
+                current_ipv4_address=${IPV4_FIXED}
+                return 0
+            else
+                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid or missing fixed IPv4 address"
+                return 1
+            fi
+            ;;
+        *)
+            bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid IPv4 update method: ${IPV4_UPDATE_METHOD}"
             return 1
-        fi
-    fi
-    return 1
-    
+            ;;
+    esac
 }
 
 function hassio_determine_ipv6_address(){
-
-    # Determine IPv6 Address
-    if [[ -n "$IPV6_FIXED" ]]; then # use fixed IPv6 address
-        bashio::log.info "Using parsed argument for fixed IPv6: ${IPV6_FIXED}"
-        if [[ ${IPV6_FIXED} == *:* ]]; then
-            current_ipv6_address=${IPV6_FIXED}
+    case "$IPV6_UPDATE_METHOD" in
+        "skip update")
+            bashio::log.info "Skipping IPv6 address update"
             return 0
-        else
-            bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears the Add-On Argument: ipv6_fixed is not an IP address "
-            exit 1
-        fi
-    else  # Get IPv6 address from HA API, since add-on container does not have IPv6 address.
-        bashio::cache.flush_all
-        for addr in $(bashio::network.ipv6_address); do
-            # Skip non-global addresses
-            if [[ ${addr} != fe80:* && ${addr} != fc* && ${addr} != fd* ]]; then
-                current_ipv6_address=${addr%/*}
-                bashio::log.info "[${FUNCNAME[0]}]" "According to the HA Supervisor API, IPv6 address is ${current_ipv6_address}"
+            ;;
+        "query external server")
+            ipv6_queried=$(curl -s -f -m 10 "${QUERY_URL_IPV6}")
+            if [[ ${ipv6_queried} == *:* ]]; then
+                bashio::log.info "[${FUNCNAME[0]}]" "According to: ${QUERY_URL_IPV6} , IPv6 address is ${ipv6_queried}"
+                current_ipv6_address=${ipv6_queried}
                 return 0
+            else
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears ipv6_queried: ${ipv6_queried} returned from ${QUERY_URL_IPV6} is not an IP address"
+                return 1
             fi
-        done
-        return 1
-    fi
-    return 1
+            ;;
+        "get interface address via bashio")
+            bashio::cache.flush_all
+            for addr in $(bashio::network.ipv6_address); do
+                # Skip non-global addresses
+                if [[ ${addr} != fe80:* && ${addr} != fc* && ${addr} != fd* ]]; then
+                    current_ipv6_address=${addr%/*}
+                    bashio::log.info "[${FUNCNAME[0]}]" "IPv6 address from bashio: ${current_ipv6_address}"
+                    return 0
+                fi
+            done
+            bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Failed to get valid IPv6 address from bashio"
+            return 1
+            ;;
+        "use fixed address")
+            if [[ -n "$IPV6_FIXED" && ${IPV6_FIXED} == *:* ]]; then
+                bashio::log.info "Using fixed IPv6 address: ${IPV6_FIXED}"
+                current_ipv6_address=${IPV6_FIXED}
+                return 0
+            else
+                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid or missing fixed IPv6 address"
+                return 1
+            fi
+            ;;
+        *)
+            bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid IPv6 update method: ${IPV6_UPDATE_METHOD}"
+            return 1
+            ;;
+    esac
 }
 
 function hassio_get_config_variables(){
