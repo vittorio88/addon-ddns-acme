@@ -3,6 +3,7 @@
 ## [1.1.0] - 2024-08-20
 
 - Update to allow for different DNS and ACME providers.
+- Update to allow configurable methods to determine IPv4 and IPv6 addresses.
 - NOTE: Please update your configuration options with the following procedure:
         a) Uninstall the addon
         b) restart home assistant supervisor
