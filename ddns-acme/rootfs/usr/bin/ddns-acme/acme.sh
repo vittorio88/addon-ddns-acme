@@ -25,6 +25,27 @@ function acme_init(){
             # Create empty dehydrated config file so that this dir will be used for storage
             touch "${WORK_DIR}/config"
 
+            # Determine the ACME server based on ACME_PROVIDER_NAME
+            local acme_server
+            case "$ACME_PROVIDER_NAME" in
+                "lets_encrypt")
+                    acme_server="https://acme-v02.api.letsencrypt.org/directory"
+                    ;;
+                "lets_encrypt_test")
+                    acme_server="https://acme-staging-v02.api.letsencrypt.org/directory"
+                    ;;
+                *)
+                    bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Unsupported ACME provider: $ACME_PROVIDER_NAME"
+                    return 1
+                    ;;
+            esac
+
+            # Debug: Print ACME server
+            bashio::log.debug "ACME server: ${acme_server}"
+
+            # Set the CA in the dehydrated config file
+            echo "CA=$acme_server" >> "${WORK_DIR}/config"
+
             if dehydrated --register --accept-terms --config "${WORK_DIR}/config"; then
                 bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Init Success dehydrated returned 0"
                 return 0
@@ -102,6 +123,9 @@ function acme_renew() {
                 return 1
                 ;;
         esac
+
+        # Debug: Print ACME server
+        bashio::log.debug "ACME server: ${acme_server}"
 
         DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd ) # find path to this file.
         bashio::log.info "[${FUNCNAME[0]}]" "Running Dehydrated with domain_args: ${domain_args[@]}"

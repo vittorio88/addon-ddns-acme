@@ -8,8 +8,22 @@ CONFIG_PATH=/data/options.json
 # Find Basepath
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
+# Set DNS_API_TOKEN
+DNS_API_TOKEN=$(bashio::config 'dns_api_token')
+export DNS_API_TOKEN
+
+# Set DOMAINS
+DOMAINS=$(bashio::config 'domains')
+export DOMAINS
+
+# Debug: Print token (masked) and domains
+bashio::log.info "DNS API Token (masked): ${DNS_API_TOKEN:0:4}...${DNS_API_TOKEN: -4}"
+bashio::log.info "Domains: $DOMAINS"
+
 # Source the appropriate DNS script based on the configuration
 DNS_PROVIDER_NAME=$(bashio::config 'dns_provider_name')
+bashio::log.info "DNS Provider: $DNS_PROVIDER_NAME"
+
 case "$DNS_PROVIDER_NAME" in
     "dynu")
         source "$DIR/dnsapi/dns_dynu.sh"
@@ -67,6 +81,9 @@ if ! hassio_get_config_variables; then
         bashio::log.error "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Failed to get config arguments from Add On Config"
         exit 1
 fi
+
+# Debug: Print ACME_PROVIDER_NAME
+bashio::log.debug "ACME_PROVIDER_NAME: ${ACME_PROVIDER_NAME}"
 
 # initialize lets encrypt
 if ! acme_init $ACME_TERMS_ACCEPTED; then

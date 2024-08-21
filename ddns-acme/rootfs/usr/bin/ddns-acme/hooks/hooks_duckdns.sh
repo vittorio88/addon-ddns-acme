@@ -5,11 +5,34 @@ set -e
 # Find Basepath
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-source "$DIR/../dnsapi/dns_duckdns.sh"
-
 CONFIG_PATH=/data/options.json
 
-DNS_API_TOKEN=$(jq --raw-output '.dns_api_token' $CONFIG_PATH)
+# Function to get DNS_API_TOKEN
+get_dns_api_token() {
+    local token
+    token=$(jq --raw-output '.dns_api_token // empty' $CONFIG_PATH)
+    if [ -z "$token" ]; then
+        bashio::log.error "DNS_API_TOKEN is not set in the config. Please configure it in the add-on settings."
+        return 1
+    fi
+    echo "$token"
+}
+
+# Set DNS_API_TOKEN
+DNS_API_TOKEN=$(get_dns_api_token)
+if [ $? -ne 0 ]; then
+    bashio::log.error "Failed to get DNS_API_TOKEN. Exiting."
+    exit 1
+fi
+
+# Debug: Print the value of DNS_API_TOKEN (first 4 and last 4 characters)
+bashio::log.debug "DNS_API_TOKEN in hooks_duckdns.sh: ${DNS_API_TOKEN:0:4}...${DNS_API_TOKEN: -4}"
+
+# Export DNS_API_TOKEN to ensure it's available to sourced scripts
+export DNS_API_TOKEN
+
+source "$DIR/../dnsapi/dns_duckdns.sh"
+
 SYS_CERTFILE=$(jq --raw-output '.certfile' $CONFIG_PATH)
 SYS_KEYFILE=$(jq --raw-output '.keyfile' $CONFIG_PATH)
 
@@ -35,10 +58,10 @@ deploy_challenge() {
     #   validation, this is what you want to put in the _acme-challenge
     #   TXT record. For HTTP validation it is the value that is expected
     #   be found in the $TOKEN_FILENAME file.
-    bashio::log.trace "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@"
-    bashio::log.info "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}]" "Deploying TXT Challenge for $ALIAS"
-    dns_duckdns_add_txt_record $ALIAS $TOKEN_VALUE
-    bashio::log.info "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}]" "Settling down for 10s..."
+
+    bashio::log.info "[${FUNCNAME[0]}] Deploying TXT Challenge for $ALIAS"
+    dns_duckdns_add_txt_record "$ALIAS" "$TOKEN_VALUE"
+    bashio::log.info "[${FUNCNAME[0]}] Settling down for 10s..."
     sleep 10
 }
 
@@ -52,7 +75,7 @@ clean_challenge() {
     #
     # The parameters are the same as for deploy_challenge.
 
-    dns_duckdns_rm_txt_record $ALIAS $TOKEN_VALUE
+    dns_duckdns_rm_txt_record "$ALIAS" "$TOKEN_VALUE"
 }
 
 deploy_cert() {
