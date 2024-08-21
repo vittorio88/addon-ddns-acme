@@ -16,7 +16,7 @@
 
 # CONSTANTS
 bashio::log.level "info"
-ACME_RENEW_WAIT_SECONDS=43200
+ACME_RENEW_WAIT_SECONDS=$(bashio::config 'acme_renew_wait')
 CONFIG_PATH=/data/options.json
 
 # Find Basepath

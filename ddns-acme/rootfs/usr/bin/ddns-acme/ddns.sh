@@ -77,7 +77,9 @@ function hassio_determine_ipv6_address(){
 function hassio_get_config_variables(){
 
     if bashio::config.has_value "ipv4_fixed"; then IPV4_FIXED=$(bashio::config 'ipv4_fixed'); else IPV4_FIXED=""; fi
+    IPV4_UPDATE_METHOD=$(bashio::config 'ipv4_update_method');
     if bashio::config.has_value "ipv6_fixed"; then IPV6_FIXED=$(bashio::config 'ipv6_fixed'); else IPV6_FIXED=""; fi
+    IPV6_UPDATE_METHOD=$(bashio::config 'ipv6_update_method');
     if bashio::config.has_value "aliases"; then ALIASES=$(bashio::config 'aliases'); else ALIASES=""; fi
 
     DNS_PROVIDER_NAME=$(bashio::config 'dns_provider_name')

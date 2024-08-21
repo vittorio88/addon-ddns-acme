@@ -23,8 +23,10 @@ options:
   keyfile: "privkey.pem"
   dns_provider_name: "dynu"
   dns_api_token: null
+  ipv4_update_method: "query external server"
   ipv4_fixed: ""
-  ipv6_fixed: ""
+  ipv6_update_method: "get interface address via bashio"
+  ipv6_fixed: "" 
   ip_update_wait_seconds: 3600
   domains: []
   aliases: []
@@ -36,7 +38,9 @@ schema:
   keyfile: "str"
   dns_provider_name: list(dynu)
   dns_api_token: "str"
+  ipv4_update_method: list(skip update|query external server|get interface address via bashio|use fixed address)
   ipv4_fixed: "str?"
+  ipv6_update_method: list(skip update|query external server|get interface address via bashio|use fixed address)
   ipv6_fixed: "str?"
   ip_update_wait_seconds: "int"
   domains: ["str"]
