@@ -3,8 +3,6 @@
 CERT_DIR=/etc/dehydrated/certs
 WORK_DIR=/etc/dehydrated/
 
-
-
 function acme_init(){
     local ACME_TERMS_ACCEPTED=$1
 
@@ -43,12 +41,13 @@ function acme_init(){
     return 0
 }
 
-# Function that performe a renew
+# Function that performs a renew
 function acme_renew() {
     local ACME_PROVIDER_NAME=$1
     local ACME_TERMS_ACCEPTED=$2
-    local DOMAINS=$3
-    local ALIASES=$4
+    local DNS_PROVIDER_NAME=$3
+    local DOMAINS=$4
+    local ALIASES=$5
 
     if $ACME_TERMS_ACCEPTED; then
 
@@ -74,12 +73,39 @@ function acme_renew() {
             domain_args+=("--domain" "${domain}")
         done
 
-        # WIP: Modify the following block to check $ACME_PROVIDER_NAME and $DNS_PROVIDER_NAME.
-        #       - Based on $DNS_PROVIDER_NAME, change hook path.
-        #       - Based on $ACME_PROVIDER_NAME, change dehydrated arguments to use Let's encrypt or Other ACME provider.
-        bashio::log.info "[${FUNCNAME[0]}]" "Running Dehydrated with domain_args: ${domain_args[@]}"
+        # Determine the hook path based on DNS_PROVIDER_NAME
+        local hook_path
+        case "$DNS_PROVIDER_NAME" in
+            "dynu")
+                hook_path="$DIR/hooks/hooks_dynu.sh"
+                ;;
+            "duckdns")
+                hook_path="$DIR/hooks/hooks_duckdns.sh"
+                ;;
+            *)
+                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Unsupported DNS provider: $DNS_PROVIDER_NAME"
+                return 1
+                ;;
+        esac
+
+        # Determine the ACME server based on ACME_PROVIDER_NAME
+        local acme_server
+        case "$ACME_PROVIDER_NAME" in
+            "lets_encrypt")
+                acme_server="https://acme-v02.api.letsencrypt.org/directory"
+                ;;
+            "lets_encrypt_test")
+                acme_server="https://acme-staging-v02.api.letsencrypt.org/directory"
+                ;;
+            *)
+                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Unsupported ACME provider: $ACME_PROVIDER_NAME"
+                return 1
+                ;;
+        esac
+
         DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd ) # find path to this file.
-        if dehydrated --cron --hook "$DIR/hooks/hooks_dynu.sh" --challenge dns-01 "${domain_args[@]}" --out "${CERT_DIR}" --config "${WORK_DIR}/config"; then
+        bashio::log.info "[${FUNCNAME[0]}]" "Running Dehydrated with domain_args: ${domain_args[@]}"
+        if dehydrated --cron --hook "$hook_path" --challenge dns-01 "${domain_args[@]}" --out "${CERT_DIR}" --config "${WORK_DIR}/config" --ca "$acme_server"; then
             bashio::log.info "[${FUNCNAME[0]}" "dehydrated completed successfully."
             return 0
         else
@@ -92,5 +118,4 @@ function acme_renew() {
         exit 1
     fi
     return 0
-
 }

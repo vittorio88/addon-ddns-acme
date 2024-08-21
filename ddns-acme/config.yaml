@@ -31,12 +31,12 @@ options:
   domains: []
   aliases: []
 schema:
-  acme_provider_name: list(lets_encrypt)
+  acme_provider_name: list(lets_encrypt|lets_encrypt_test)
   acme_accept_terms: "bool"
   acme_renew_wait: "int"
   certfile: "str"
   keyfile: "str"
-  dns_provider_name: list(dynu)
+  dns_provider_name: list(dynu|duckdns)
   dns_api_token: "str"
   ipv4_update_method: list(skip update|query external server|get interface address via bashio|use fixed address)
   ipv4_fixed: "str?"
