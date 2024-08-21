@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.2.0] - 2024-08-21
+
+- Add ability to use different ACME server and different DNS servers.
+- Add Let's Encrypt Test Server.
+- Add support for DuckDNS.
+- NOTE: Please update your configuration options with the following procedure:
+        a) Uninstall the addon
+        b) restart home assistant supervisor
+        c) Reinstall the addon
+
 ## [1.1.0] - 2024-08-20
 
 - Update to allow for different DNS and ACME providers.
@@ -8,7 +18,6 @@
         a) Uninstall the addon
         b) restart home assistant supervisor
         c) Reinstall the addon
-
 
 ## [1.0.0] - 2024-02-04
 
