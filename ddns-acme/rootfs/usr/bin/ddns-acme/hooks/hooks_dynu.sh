@@ -9,9 +9,9 @@ source "$DIR/../dnsapi/dns_dynu.sh"
 
 CONFIG_PATH=/data/options.json
 
-DNS_API_TOKEN=$(jq --raw-output '.dns_provider.dns_api_token' $CONFIG_PATH)
-SYS_CERTFILE=$(jq --raw-output '.acme_provider.certfile' $CONFIG_PATH)
-SYS_KEYFILE=$(jq --raw-output '.acme_provider.keyfile' $CONFIG_PATH)
+DNS_API_TOKEN=$(jq --raw-output '.dns_api_token' $CONFIG_PATH)
+SYS_CERTFILE=$(jq --raw-output '.certfile' $CONFIG_PATH)
+SYS_KEYFILE=$(jq --raw-output '.keyfile' $CONFIG_PATH)
 
 # https://github.com/lukas2511/dehydrated/blob/master/docs/examples/hook.sh
 

@@ -80,12 +80,12 @@ function hassio_get_config_variables(){
     if bashio::config.has_value "ipv6_fixed"; then IPV6_FIXED=$(bashio::config 'ipv6_fixed'); else IPV6_FIXED=""; fi
     if bashio::config.has_value "aliases"; then ALIASES=$(bashio::config 'aliases'); else ALIASES=""; fi
 
-    DNS_PROVIDER_NAME=$(bashio::config 'dns_provider.provider_name')
-    DNS_API_TOKEN=$(bashio::config 'dns_provider.dns_api_token')
+    DNS_PROVIDER_NAME=$(bashio::config 'dns_provider_name')
+    DNS_API_TOKEN=$(bashio::config 'dns_api_token')
     DOMAINS=$(bashio::config 'domains')
     IP_UPDATE_WAIT_SECONDS=$(bashio::config 'ip_update_wait_seconds')
-    ACME_PROVIDER_NAME=$(bashio::config 'acme_provider.provider_name')
-    ACME_TERMS_ACCEPTED=$(bashio::config 'acme_provider.accept_terms')
+    ACME_PROVIDER_NAME=$(bashio::config 'acme_provider_name')
+    ACME_TERMS_ACCEPTED=$(bashio::config 'acme_accept_terms')
 
     # Check if DOMAINS are valid domains.
     for domain in ${DOMAINS}; do

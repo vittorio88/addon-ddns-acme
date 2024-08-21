@@ -45,7 +45,7 @@ function acme_init(){
 
 # Function that performe a renew
 function acme_renew() {
-    local PROVIDER_NAME=$1
+    local ACME_PROVIDER_NAME=$1
     local ACME_TERMS_ACCEPTED=$2
     local DOMAINS=$3
     local ALIASES=$4
@@ -55,7 +55,7 @@ function acme_renew() {
         local domain_args=()
         local aliases=''
 
-        bashio::log.info "Renewing ACME for: $PROVIDER_NAME"
+        bashio::log.info "Renewing ACME for: $ACME_PROVIDER_NAME"
         # Prepare domain for ACME processing
         for domain in ${DOMAINS}; do
             for alias in $(jq --raw-output --exit-status "[.aliases[]|{(.alias):.domain}]|add.\"$domain\" | select(. != null)" "$CONFIG_PATH") ; do
