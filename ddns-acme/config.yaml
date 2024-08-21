@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: DDNS-ACME add-on
-version: "1.0.0"
+version: "1.1.0"
 slug: ddns-acme
 description: DDNS-ACME add-on
 url: "https://github.com/vittorio88/addon-ddns-acme/tree/main/ddns-acme"
@@ -26,7 +26,7 @@ options:
   ipv4_fixed: ""
   ipv6_fixed: ""
   ip_update_wait_seconds: 3600
-  domains: [null]
+  domains: []
   aliases: []
 schema:
   acme_provider_name: list(lets_encrypt)
