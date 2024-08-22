@@ -2,9 +2,12 @@
 
 CERT_DIR=/etc/dehydrated/certs
 WORK_DIR=/etc/dehydrated/
+LAST_ACME_OP_FILE="${WORK_DIR}/last_acme_op"
 
 function acme_init(){
     local ACME_TERMS_ACCEPTED=$1
+    local max_retries=5
+    local retry_delay=5
 
     bashio::log.info "[${FUNCNAME[0]}]" "Initializing ACME using CERT_DIR=$CERT_DIR and WORK_DIR=$WORK_DIR"
 
@@ -46,13 +49,18 @@ function acme_init(){
             # Set the CA in the dehydrated config file
             echo "CA=$acme_server" >> "${WORK_DIR}/config"
 
-            if dehydrated --register --accept-terms --config "${WORK_DIR}/config"; then
-                bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Init Success dehydrated returned 0"
-                return 0
-            else
-                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Init Fail, dehydrated returned not 0"
-                return 1
-            fi
+            for ((i=1; i<=max_retries; i++)); do
+                if dehydrated --register --accept-terms --config "${WORK_DIR}/config"; then
+                    bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Init Success dehydrated returned 0"
+                    return 0
+                else
+                    bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Init Fail, dehydrated returned non-zero. Retry $i of $max_retries"
+                    sleep $((retry_delay * 2**((i-1))))
+                fi
+            done
+
+            bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Failed to initialize ACME after $max_retries attempts"
+            return 1
         fi
     else
         bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Terms must be accepted in add-on config"
@@ -131,6 +139,7 @@ function acme_renew() {
         bashio::log.info "[${FUNCNAME[0]}]" "Running Dehydrated with domain_args: ${domain_args[@]}"
         if dehydrated --cron --hook "$hook_path" --challenge dns-01 "${domain_args[@]}" --out "${CERT_DIR}" --config "${WORK_DIR}/config" --ca "$acme_server"; then
             bashio::log.info "[${FUNCNAME[0]}" "dehydrated completed successfully."
+            echo "$(date +%s)" > "${LAST_ACME_OP_FILE}"
             return 0
         else
             bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "dehydrated did not complete successfully."
@@ -142,4 +151,12 @@ function acme_renew() {
         exit 1
     fi
     return 0
+}
+
+function get_last_acme_op_time() {
+    if [ -f "${LAST_ACME_OP_FILE}" ]; then
+        cat "${LAST_ACME_OP_FILE}"
+    else
+        echo "0"
+    fi
 }

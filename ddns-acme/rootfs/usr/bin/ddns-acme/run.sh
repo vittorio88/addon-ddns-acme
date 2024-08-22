@@ -40,37 +40,27 @@ esac
 source "$DIR/acme.sh"
 source "$DIR/ddns.sh"
 
-# VARIABLES
-acme_last_renewed_time=0
-
-function update_dns_ip_addresses(){
-    declare current_ipv4_address
-    if ! hassio_determine_ipv4_address; then
-        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv4 address"
-        return 1
+# Function to convert seconds to human-readable format
+seconds_to_human_readable() {
+    local seconds=$1
+    local days=$((seconds / 86400))
+    local hours=$(( (seconds % 86400) / 3600 ))
+    local minutes=$(( (seconds % 3600) / 60 ))
+    local remaining_seconds=$((seconds % 60))
+    
+    local result=""
+    if [ $days -gt 0 ]; then
+        result="${days} days, "
     fi
-
-    declare current_ipv6_address
-    if ! hassio_determine_ipv6_address; then
-        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv6 address"
+    if [ $hours -gt 0 ]; then
+        result="${result}${hours} hours, "
     fi
-
-    # Update each domain
-    for domain in ${DOMAINS}; do
-        if [ "$DNS_PROVIDER_NAME" = "dynu" ]; then
-            if ! dns_dynu_update_ipv4_ipv6 "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
-                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update Dynu DNS IP address records for domain: $domain"
-                return 1
-            fi
-        elif [ "$DNS_PROVIDER_NAME" = "duckdns" ]; then
-            if ! dns_duckdns_update "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
-                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update DuckDNS IP address records for domain: $domain"
-                return 1
-            fi
-        fi
-    done
-
-    return 0
+    if [ $minutes -gt 0 ]; then
+        result="${result}${minutes} minutes, "
+    fi
+    result="${result}${remaining_seconds} seconds"
+    
+    echo "$result"
 }
 
 ## INIT
@@ -93,25 +83,49 @@ fi
 
 bashio::log.info "[DDNS-ACME - Add-On]" "Entering main DDNS-ACME Renew loop"
 while true; do
+    now="$(date +%s)"
+    last_ip_update=$(get_last_ip_update_time)
+    last_acme_op=$(get_last_acme_op_time)
+    ip_update_interval=$((now - last_ip_update))
+    acme_op_interval=$((now - last_acme_op))
 
-    # update IP Addresses
-    if ! update_dns_ip_addresses; then
-        bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update DNS IP address. Skipping ACME Renew."
-    else
-        now="$(date +%s)"
-        acme_time_since_last_renew=$((now - acme_last_renewed_time))
-        if [ $acme_time_since_last_renew -ge $ACME_RENEW_WAIT_SECONDS ]; then
-            if ! acme_renew "$ACME_PROVIDER_NAME" "$ACME_TERMS_ACCEPTED" "$DNS_PROVIDER_NAME" "$DOMAINS" "$ALIASES"; then
-                bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "ACME renew failed."
-            else
-                bashio::log.info "[DDNS-ACME - Add-On]" "ACME renew succeeded."
-                acme_last_renewed_time="$(date +%s)"
-            fi
-        else 
-            bashio::log.info "[DDNS-ACME - Add-On]" "acme_time_since_last_renew=$acme_time_since_last_renew is not yet greater than $ACME_RENEW_WAIT_SECONDS. Skipping LE renew for now..."
+    # Perform DDNS update if necessary
+    if [ $ip_update_interval -ge $IP_UPDATE_WAIT_SECONDS ]; then
+        if update_dns_ip_addresses; then
+            bashio::log.info "[DDNS-ACME - Add-On]" "DDNS update succeeded."
+        else
+            bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "DDNS update failed."
         fi
+    else
+        bashio::log.info "[DDNS-ACME - Add-On]" "Skipping DDNS update. Time since last update: $(seconds_to_human_readable $ip_update_interval)"
     fi
 
-    bashio::log.info "[DDNS-ACME - Add-On]" "Sleeping until Next IP update in $IP_UPDATE_WAIT_SECONDS seconds."
-    sleep "${IP_UPDATE_WAIT_SECONDS}"
+    # Perform ACME renewal if necessary
+    if [ $acme_op_interval -ge $ACME_RENEW_WAIT_SECONDS ]; then
+        if acme_renew "$ACME_PROVIDER_NAME" "$ACME_TERMS_ACCEPTED" "$DNS_PROVIDER_NAME" "$DOMAINS" "$ALIASES"; then
+            bashio::log.info "[DDNS-ACME - Add-On]" "ACME renew succeeded."
+        else
+            bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "ACME renew failed."
+        fi
+    else
+        bashio::log.info "[DDNS-ACME - Add-On]" "Skipping ACME renewal. Time since last renewal: $(seconds_to_human_readable $acme_op_interval)"
+    fi
+
+    # Calculate next update times
+    next_ip_update=$((last_ip_update + IP_UPDATE_WAIT_SECONDS))
+    next_acme_op=$((last_acme_op + ACME_RENEW_WAIT_SECONDS))
+
+    # Calculate sleep duration
+    sleep_duration=$((IP_UPDATE_WAIT_SECONDS < ACME_RENEW_WAIT_SECONDS ? IP_UPDATE_WAIT_SECONDS : ACME_RENEW_WAIT_SECONDS))
+    sleep_until=$((now + sleep_duration))
+
+    # Print information about updates and next scheduled operations
+    bashio::log.info "Last IP update: $(seconds_to_human_readable $((now - last_ip_update))) ago"
+    bashio::log.info "Next IP update: in $(seconds_to_human_readable $((next_ip_update - now)))"
+    bashio::log.info "Last ACME operation: $(seconds_to_human_readable $((now - last_acme_op))) ago"
+    bashio::log.info "Next ACME operation: in $(seconds_to_human_readable $((next_acme_op - now)))"
+    bashio::log.info "Sleep info: for $(seconds_to_human_readable $sleep_duration)"
+
+    # Sleep until the next operation
+    sleep $sleep_duration
 done

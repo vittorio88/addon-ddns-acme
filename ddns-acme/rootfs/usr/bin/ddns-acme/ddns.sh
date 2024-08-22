@@ -2,6 +2,8 @@
 
 # CONSTANTS
 QUERY_URL_IPV4="https://ipv4.text.wtfismyip.com"
+QUERY_URL_IPV6="https://ipv6.text.wtfismyip.com"
+LAST_IP_UPDATE_FILE="/data/last_ip_update"
 
 function is_domain() {
     local domain="$1"
@@ -157,4 +159,43 @@ function hassio_get_config_variables(){
     fi
 
     return 0
+}
+
+function update_dns_ip_addresses(){
+    declare current_ipv4_address
+    if ! hassio_determine_ipv4_address; then
+        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv4 address"
+        return 1
+    fi
+
+    declare current_ipv6_address
+    if ! hassio_determine_ipv6_address; then
+        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv6 address"
+    fi
+
+    # Update each domain
+    for domain in ${DOMAINS}; do
+        if [ "$DNS_PROVIDER_NAME" = "dynu" ]; then
+            if ! dns_dynu_update_ipv4_ipv6 "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update Dynu DNS IP address records for domain: $domain"
+                return 1
+            fi
+        elif [ "$DNS_PROVIDER_NAME" = "duckdns" ]; then
+            if ! dns_duckdns_update "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update DuckDNS IP address records for domain: $domain"
+                return 1
+            fi
+        fi
+    done
+
+    echo "$(date +%s)" > "${LAST_IP_UPDATE_FILE}"
+    return 0
+}
+
+function get_last_ip_update_time() {
+    if [ -f "${LAST_IP_UPDATE_FILE}" ]; then
+        cat "${LAST_IP_UPDATE_FILE}"
+    else
+        echo "0"
+    fi
 }
