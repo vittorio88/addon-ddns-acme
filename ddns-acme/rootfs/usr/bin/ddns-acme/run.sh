@@ -63,6 +63,14 @@ seconds_to_human_readable() {
     echo "$result"
 }
 
+# Function to convert seconds to hours and minutes
+seconds_to_hours_minutes() {
+    local seconds=$1
+    local hours=$((seconds / 3600))
+    local minutes=$(( (seconds % 3600) / 60 ))
+    echo "${hours}h ${minutes}m"
+}
+
 ## INIT
 bashio::log.info "[DDNS-ACME - Add On] Initializing."
 
@@ -122,7 +130,7 @@ while true; do
     # Print information about updates and next scheduled operations
     bashio::log.info "Last IP update: $(seconds_to_hours_minutes $((now - last_ip_update))) ago | Next IP update: in $(seconds_to_hours_minutes $((next_ip_update - now)))"
     bashio::log.info "Last ACME operation: $(seconds_to_human_readable $((now - last_acme_op))) ago | Next ACME operation: in $(seconds_to_human_readable $((next_acme_op - now)))"
-    bashio::log.info "Sleep info: for $(seconds_to_human_readable $sleep_duration)"
+    bashio::log.info "Sleep duration: $(seconds_to_human_readable $sleep_duration)"
 
     # Sleep until the next operation
     sleep $sleep_duration
