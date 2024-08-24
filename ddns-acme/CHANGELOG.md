@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.3.0] - 2024-08-23
+
+- Refactor DNS provider handling for better modularity
+- Enhance ACME certificate renewal and IP update process by using files with timestamps.
+- Add logo.png and icon.png
+- Update documentation and comments for better clarity
+- Merge changes with rebase from HA Example Add-on to fix builds. 
+    Note: If you get git issues, nuke your repo, and clone again.
+- Add install instructions to README.md
+
 ## [1.2.0] - 2024-08-21
 
 - Add ability to use different ACME server and different DNS servers.
