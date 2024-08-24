@@ -1,5 +1,7 @@
 # DDNS-ACME Add-on for Home Assistant
 
+![DDNS-ACME Logo](ddns-acme/logo.png)
+
 [![GitHub Release][releases-shield]][releases]
 ![Project Stage][project-stage-shield]
 [![License][license-shield]](LICENSE.md)
