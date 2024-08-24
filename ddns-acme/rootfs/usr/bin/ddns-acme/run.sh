@@ -120,10 +120,8 @@ while true; do
     sleep_until=$((now + sleep_duration))
 
     # Print information about updates and next scheduled operations
-    bashio::log.info "Last IP update: $(seconds_to_human_readable $((now - last_ip_update))) ago"
-    bashio::log.info "Next IP update: in $(seconds_to_human_readable $((next_ip_update - now)))"
-    bashio::log.info "Last ACME operation: $(seconds_to_human_readable $((now - last_acme_op))) ago"
-    bashio::log.info "Next ACME operation: in $(seconds_to_human_readable $((next_acme_op - now)))"
+    bashio::log.info "Last IP update: $(seconds_to_hours_minutes $((now - last_ip_update))) ago | Next IP update: in $(seconds_to_hours_minutes $((next_ip_update - now)))"
+    bashio::log.info "Last ACME operation: $(seconds_to_human_readable $((now - last_acme_op))) ago | Next ACME operation: in $(seconds_to_human_readable $((next_acme_op - now)))"
     bashio::log.info "Sleep info: for $(seconds_to_human_readable $sleep_duration)"
 
     # Sleep until the next operation
