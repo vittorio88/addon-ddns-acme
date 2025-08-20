@@ -119,6 +119,19 @@ function hassio_get_config_variables(){
     IPV4_UPDATE_METHOD=$(bashio::config 'ipv4_update_method');
     if bashio::config.has_value "ipv6_fixed"; then IPV6_FIXED=$(bashio::config 'ipv6_fixed'); else IPV6_FIXED=""; fi
     IPV6_UPDATE_METHOD=$(bashio::config 'ipv6_update_method');
+    
+    # Validate that fixed IP addresses are provided when required
+    if [ "$IPV4_UPDATE_METHOD" = "use fixed address" ] && [ -z "$IPV4_FIXED" ]; then
+        bashio::log.error "IPv4 update method is set to 'use fixed address' but no fixed IPv4 address is configured."
+        bashio::log.error "Please set the 'ipv4_fixed' configuration option or change the IPv4 update method."
+        return 1
+    fi
+    
+    if [ "$IPV6_UPDATE_METHOD" = "use fixed address" ] && [ -z "$IPV6_FIXED" ]; then
+        bashio::log.error "IPv6 update method is set to 'use fixed address' but no fixed IPv6 address is configured."
+        bashio::log.error "Please set the 'ipv6_fixed' configuration option or change the IPv6 update method."
+        return 1
+    fi
     if bashio::config.has_value "aliases"; then ALIASES=$(bashio::config 'aliases'); else ALIASES=""; fi
 
     DNS_PROVIDER_NAME=$(bashio::config 'dns_provider_name')

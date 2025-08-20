@@ -8,6 +8,8 @@
 - Prevent unnecessary DNS provider requests when IP addresses haven't changed
 - Optimize IP address detection to eliminate duplicate external server queries on startup
 - Restructure functions to pass IP addresses explicitly instead of using global caching
+- Improve documentation to clarify when fixed IP address fields are needed
+- Add validation for fixed IP address configuration to provide helpful error messages
 
 ## [1.3.1] - 2024-08-23
 
