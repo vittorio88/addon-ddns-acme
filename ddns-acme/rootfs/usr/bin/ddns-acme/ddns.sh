@@ -182,8 +182,8 @@ function hassio_get_config_variables(){
 }
 
 function update_dns_ip_addresses(){
-    local provided_ipv4="$1"
-    local provided_ipv6="$2"
+    local provided_ipv4="${1:-}"
+    local provided_ipv6="${2:-}"
     
     # Use provided IP addresses if given, otherwise determine fresh ones
     if [ -n "$provided_ipv4" ] && [ "$IPV4_UPDATE_METHOD" != "skip update" ]; then
@@ -240,7 +240,7 @@ function get_dns_ip_address() {
     
     # Query DNS for current IP address
     local dns_ip
-    dns_ip=$(dig +short "$domain" "$record_type" | tail -1)
+    dns_ip=$(dig +short "$domain" "$record_type" 2>/dev/null | tail -1)
     
     if [ -z "$dns_ip" ]; then
         bashio::log.debug "No $record_type record found for $domain"
@@ -255,6 +255,7 @@ function check_ip_differences_and_get_addresses() {
     local differences_found=false
     local local_ipv4=""
     local local_ipv6=""
+    local check_failed=false
     
     # Determine current local IP addresses
     if [ "$IPV4_UPDATE_METHOD" != "skip update" ]; then
@@ -266,7 +267,7 @@ function check_ip_differences_and_get_addresses() {
             # Check each domain's IPv4 record
             for domain in ${DOMAINS}; do
                 local dns_ipv4
-                if dns_ipv4=$(get_dns_ip_address "$domain" "A"); then
+                if dns_ipv4=$(get_dns_ip_address "$domain" "A" 2>/dev/null); then
                     if [ "$local_ipv4" != "$dns_ipv4" ]; then
                         bashio::log.info "IPv4 difference detected for $domain: local=$local_ipv4, DNS=$dns_ipv4"
                         differences_found=true
@@ -276,6 +277,9 @@ function check_ip_differences_and_get_addresses() {
                     differences_found=true
                 fi
             done
+        else
+            bashio::log.warning "Could not determine IPv4 address for startup check"
+            check_failed=true
         fi
     fi
     
@@ -288,7 +292,7 @@ function check_ip_differences_and_get_addresses() {
             # Check each domain's IPv6 record
             for domain in ${DOMAINS}; do
                 local dns_ipv6
-                if dns_ipv6=$(get_dns_ip_address "$domain" "AAAA"); then
+                if dns_ipv6=$(get_dns_ip_address "$domain" "AAAA" 2>/dev/null); then
                     if [ "$local_ipv6" != "$dns_ipv6" ]; then
                         bashio::log.info "IPv6 difference detected for $domain: local=$local_ipv6, DNS=$dns_ipv6"
                         differences_found=true
@@ -298,16 +302,23 @@ function check_ip_differences_and_get_addresses() {
                     differences_found=true
                 fi
             done
+        else
+            bashio::log.warning "Could not determine IPv6 address for startup check"
         fi
     fi
     
     # Output the IP addresses for the caller to use
     echo "$local_ipv4|$local_ipv6"
     
-    if [ "$differences_found" = true ]; then
+    # If there was a critical failure in determining IPs, we should still continue
+    # but not attempt an update
+    if [ "$check_failed" = true ]; then
+        bashio::log.warning "IP address check failed, skipping startup update"
+        return 2  # check failed, but not fatal
+    elif [ "$differences_found" = true ]; then
         return 0  # differences found
     else
         bashio::log.info "No IP address differences detected between local and DNS records"
-        return 1  # no differences found
+        return 1  # no differences found (normal case)
     fi
 }

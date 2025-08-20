@@ -91,23 +91,50 @@ if ! acme_init $ACME_TERMS_ACCEPTED; then
 fi
 
 # Check for IP differences on startup (before entering the main loop)
-bashio::log.info "[DDNS-ACME - Add-On]" "Checking for IP address differences on startup..."
-startup_ip_result=$(check_ip_differences_and_get_addresses)
-startup_check_result=$?
-startup_ipv4=$(echo "$startup_ip_result" | cut -d'|' -f1)
-startup_ipv6=$(echo "$startup_ip_result" | cut -d'|' -f2)
+# Wrap the entire startup check to ensure it never causes the script to exit
+(
+    bashio::log.info "[DDNS-ACME - Add-On]" "Checking for IP address differences on startup..."
+    
+    startup_ip_result=$(check_ip_differences_and_get_addresses)
+    startup_check_result=$?
+    bashio::log.debug "[DDNS-ACME - Add-On]" "IP check function returned code: $startup_check_result"
+    startup_ipv4=$(echo "$startup_ip_result" | cut -d'|' -f1)
+    startup_ipv6=$(echo "$startup_ip_result" | cut -d'|' -f2)
+    bashio::log.debug "[DDNS-ACME - Add-On]" "Parsed IPs: IPv4='$startup_ipv4' IPv6='$startup_ipv6'"
 
-if [ $startup_check_result -eq 0 ]; then
-    bashio::log.info "[DDNS-ACME - Add-On]" "IP address differences detected on startup, performing immediate DDNS update"
-    if update_dns_ip_addresses "$startup_ipv4" "$startup_ipv6"; then
-        bashio::log.info "[DDNS-ACME - Add-On]" "Startup DDNS update succeeded."
-    else
-        bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Startup DDNS update failed."
-    fi
-else
-    bashio::log.info "[DDNS-ACME - Add-On]" "No IP address differences detected on startup, skipping immediate update"
-fi
-
+    # Handle different return codes from the IP check
+    case $startup_check_result in
+        0)
+            # Differences found - perform immediate update
+            bashio::log.info "[DDNS-ACME - Add-On]" "IP address differences detected on startup, performing immediate DDNS update"
+            if update_dns_ip_addresses "$startup_ipv4" "$startup_ipv6"; then
+                bashio::log.info "[DDNS-ACME - Add-On]" "Startup DDNS update succeeded."
+            else
+                bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Startup DDNS update failed."
+            fi
+            ;;
+        1)
+            # No differences found - this is normal, continue
+            bashio::log.info "[DDNS-ACME - Add-On]" "No IP address differences detected on startup, skipping immediate update"
+            ;;
+        2)
+            # Check failed but not fatal - log warning and continue
+            bashio::log.warning "[DDNS-ACME - Add-On]" "IP address check failed on startup, skipping immediate update"
+            ;;
+        *)
+            # Unexpected return code - log warning and continue
+            bashio::log.warning "[DDNS-ACME - Add-On]" "Unexpected result from IP check (code: $startup_check_result), skipping immediate update"
+            ;;
+    esac
+    
+    bashio::log.info "[DDNS-ACME - Add-On]" "Startup IP check completed successfully, continuing to main loop"
+    
+    # Always return success from this subshell
+    exit 0
+) || {
+    # If the startup check somehow fails catastrophically, log it but continue
+    bashio::log.warning "[DDNS-ACME - Add-On]" "Startup IP check encountered an error, but continuing with normal operation"
+}
 bashio::log.info "[DDNS-ACME - Add-On]" "Entering main DDNS-ACME Renew loop"
 while true; do
     now="$(date +%s)"

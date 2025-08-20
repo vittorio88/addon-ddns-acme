@@ -1,5 +1,13 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.3.3] - 2025-08-20
+
+- Fix bug where addon would halt when no IP differences were detected on startup
+- Improve error handling and graceful degradation for startup IP checks
+- Add better DNS lookup error handling to prevent startup failures
+- Isolate startup IP check in subshell to prevent any exit conditions from halting the addon
+- Fix "unbound variable" error when update_dns_ip_addresses is called without parameters
+
 ## [1.3.2] - 2025-08-20
 
 - Add IP address difference detection on addon restart
