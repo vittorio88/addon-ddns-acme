@@ -1,5 +1,18 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.3.2] - 2025-08-20
+
+- Add IP address difference detection on addon restart
+- Perform immediate DDNS update when local IP differs from DNS records on startup
+- Add bind-tools package to support DNS record queries
+- Prevent unnecessary DNS provider requests when IP addresses haven't changed
+- Optimize IP address detection to eliminate duplicate external server queries on startup
+- Restructure functions to pass IP addresses explicitly instead of using global caching
+
+## [1.3.1] - 2024-08-23
+
+- Enhanced error handling and logging
+
 ## [1.3.0] - 2024-08-23
 
 - Refactor DNS provider handling for better modularity

@@ -10,7 +10,7 @@ RUN \
 
 # Setup Dehydrated
 ARG DEHYDRATED_VERSION
-RUN apk add --no-cache openssl \
+RUN apk add --no-cache openssl bind-tools \
   && curl -s -o /usr/bin/dehydrated \
     "https://raw.githubusercontent.com/lukas2511/dehydrated/v${DEHYDRATED_VERSION}/dehydrated" \
   && chmod a+x /usr/bin/dehydrated

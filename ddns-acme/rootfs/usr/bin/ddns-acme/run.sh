@@ -1,6 +1,7 @@
 #!/usr/bin/with-contenv bashio
 
 # CONSTANTS
+# Set default log level initially, will be updated from config later
 bashio::log.level "info"
 ACME_RENEW_WAIT_SECONDS=$(bashio::config 'acme_renew_wait')
 CONFIG_PATH=/data/options.json
@@ -87,6 +88,24 @@ bashio::log.debug "ACME_PROVIDER_NAME: ${ACME_PROVIDER_NAME}"
 if ! acme_init $ACME_TERMS_ACCEPTED; then
         bashio::log.error "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Lets Encrypt Init failed."
         exit 1
+fi
+
+# Check for IP differences on startup (before entering the main loop)
+bashio::log.info "[DDNS-ACME - Add-On]" "Checking for IP address differences on startup..."
+startup_ip_result=$(check_ip_differences_and_get_addresses)
+startup_check_result=$?
+startup_ipv4=$(echo "$startup_ip_result" | cut -d'|' -f1)
+startup_ipv6=$(echo "$startup_ip_result" | cut -d'|' -f2)
+
+if [ $startup_check_result -eq 0 ]; then
+    bashio::log.info "[DDNS-ACME - Add-On]" "IP address differences detected on startup, performing immediate DDNS update"
+    if update_dns_ip_addresses "$startup_ipv4" "$startup_ipv6"; then
+        bashio::log.info "[DDNS-ACME - Add-On]" "Startup DDNS update succeeded."
+    else
+        bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Startup DDNS update failed."
+    fi
+else
+    bashio::log.info "[DDNS-ACME - Add-On]" "No IP address differences detected on startup, skipping immediate update"
 fi
 
 bashio::log.info "[DDNS-ACME - Add-On]" "Entering main DDNS-ACME Renew loop"

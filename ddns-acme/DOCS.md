@@ -38,6 +38,7 @@ options:
   domains: ["my-domain.dynudns.org"]
   aliases: []
   ip_update_wait_seconds: 3600
+  log_level: info
 ```
 
 Additionally, you'll need to configure the Home Assistant Core to pick up the SSL certificates. This is done by setting the following configuration for the [HTTP][HTTP] integration configuration in your `configuration.yaml`:
@@ -120,6 +121,19 @@ CNAME                 <own-domain>                    <domain>.dynudns.org
 #### Option: `ip_update_wait_seconds`
 
 The number of seconds to wait before updating DynuDNS subdomains and renewing Let's Encrypt certificates.
+
+#### Option: `log_level`
+
+Controls the verbosity of logging output. Available options:
+- `trace`: Most verbose logging, shows all debug information
+- `debug`: Detailed debugging information  
+- `info`: General informational messages (default)
+- `notice`: Important notices
+- `warning`: Warning messages only
+- `error`: Error messages only  
+- `fatal`: Only critical/fatal errors
+
+Default: `info`
 
 ## Known issues and limitations
 

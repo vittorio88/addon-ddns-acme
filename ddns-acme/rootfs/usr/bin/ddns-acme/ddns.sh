@@ -127,6 +127,13 @@ function hassio_get_config_variables(){
     IP_UPDATE_WAIT_SECONDS=$(bashio::config 'ip_update_wait_seconds')
     ACME_PROVIDER_NAME=$(bashio::config 'acme_provider_name')
     ACME_TERMS_ACCEPTED=$(bashio::config 'acme_accept_terms')
+    
+    # Set log level from configuration
+    if bashio::config.has_value "log_level"; then 
+        LOG_LEVEL=$(bashio::config 'log_level')
+        bashio::log.level "${LOG_LEVEL}"
+        bashio::log.info "Log level set to: ${LOG_LEVEL}"
+    fi
 
     # Check if DOMAINS are valid domains.
     for domain in ${DOMAINS}; do
@@ -162,15 +169,29 @@ function hassio_get_config_variables(){
 }
 
 function update_dns_ip_addresses(){
-    declare current_ipv4_address
-    if ! hassio_determine_ipv4_address; then
-        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv4 address"
-        return 1
+    local provided_ipv4="$1"
+    local provided_ipv6="$2"
+    
+    # Use provided IP addresses if given, otherwise determine fresh ones
+    if [ -n "$provided_ipv4" ] && [ "$IPV4_UPDATE_METHOD" != "skip update" ]; then
+        current_ipv4_address="$provided_ipv4"
+        bashio::log.debug "Using provided IPv4 address: $current_ipv4_address"
+    elif [ "$IPV4_UPDATE_METHOD" != "skip update" ]; then
+        declare current_ipv4_address
+        if ! hassio_determine_ipv4_address; then
+            bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv4 address"
+            return 1
+        fi
     fi
 
-    declare current_ipv6_address
-    if ! hassio_determine_ipv6_address; then
-        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv6 address"
+    if [ -n "$provided_ipv6" ] && [ "$IPV6_UPDATE_METHOD" != "skip update" ]; then
+        current_ipv6_address="$provided_ipv6"
+        bashio::log.debug "Using provided IPv6 address: $current_ipv6_address"
+    elif [ "$IPV6_UPDATE_METHOD" != "skip update" ]; then
+        declare current_ipv6_address
+        if ! hassio_determine_ipv6_address; then
+            bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv6 address"
+        fi
     fi
 
     # Update each domain
@@ -197,5 +218,83 @@ function get_last_ip_update_time() {
         cat "${LAST_IP_UPDATE_FILE}"
     else
         echo "0"
+    fi
+}
+
+function get_dns_ip_address() {
+    local domain="$1"
+    local record_type="$2"  # A or AAAA
+    
+    # Query DNS for current IP address
+    local dns_ip
+    dns_ip=$(dig +short "$domain" "$record_type" | tail -1)
+    
+    if [ -z "$dns_ip" ]; then
+        bashio::log.debug "No $record_type record found for $domain"
+        return 1
+    fi
+    
+    echo "$dns_ip"
+    return 0
+}
+
+function check_ip_differences_and_get_addresses() {
+    local differences_found=false
+    local local_ipv4=""
+    local local_ipv6=""
+    
+    # Determine current local IP addresses
+    if [ "$IPV4_UPDATE_METHOD" != "skip update" ]; then
+        declare current_ipv4_address
+        if hassio_determine_ipv4_address && [ -n "$current_ipv4_address" ]; then
+            local_ipv4="$current_ipv4_address"
+            bashio::log.debug "Current local IPv4: $local_ipv4"
+            
+            # Check each domain's IPv4 record
+            for domain in ${DOMAINS}; do
+                local dns_ipv4
+                if dns_ipv4=$(get_dns_ip_address "$domain" "A"); then
+                    if [ "$local_ipv4" != "$dns_ipv4" ]; then
+                        bashio::log.info "IPv4 difference detected for $domain: local=$local_ipv4, DNS=$dns_ipv4"
+                        differences_found=true
+                    fi
+                else
+                    bashio::log.info "No IPv4 record found in DNS for $domain, local IPv4 is $local_ipv4"
+                    differences_found=true
+                fi
+            done
+        fi
+    fi
+    
+    if [ "$IPV6_UPDATE_METHOD" != "skip update" ]; then
+        declare current_ipv6_address
+        if hassio_determine_ipv6_address && [ -n "$current_ipv6_address" ]; then
+            local_ipv6="$current_ipv6_address"
+            bashio::log.debug "Current local IPv6: $local_ipv6"
+            
+            # Check each domain's IPv6 record
+            for domain in ${DOMAINS}; do
+                local dns_ipv6
+                if dns_ipv6=$(get_dns_ip_address "$domain" "AAAA"); then
+                    if [ "$local_ipv6" != "$dns_ipv6" ]; then
+                        bashio::log.info "IPv6 difference detected for $domain: local=$local_ipv6, DNS=$dns_ipv6"
+                        differences_found=true
+                    fi
+                else
+                    bashio::log.info "No IPv6 record found in DNS for $domain, local IPv6 is $local_ipv6"
+                    differences_found=true
+                fi
+            done
+        fi
+    fi
+    
+    # Output the IP addresses for the caller to use
+    echo "$local_ipv4|$local_ipv6"
+    
+    if [ "$differences_found" = true ]; then
+        return 0  # differences found
+    else
+        bashio::log.info "No IP address differences detected between local and DNS records"
+        return 1  # no differences found
     fi
 }
