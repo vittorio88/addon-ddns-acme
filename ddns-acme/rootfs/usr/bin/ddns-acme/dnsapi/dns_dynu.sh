@@ -178,7 +178,7 @@ function _get_domain_config(){
         
     # Get current domain configuration
     bashio::log.info "Getting current domain configuration for domain: ${domain}"
-    if current_domain_config="$(curl -s -f -H "API-Key: $DNS_API_TOKEN" -H "Content-Type: application/json" "https://api.dynu.com/v2/dns/$domain_id")"; then
+    if current_domain_config="$(curl -s -f -m 30 --retry 2 -H "API-Key: $DNS_API_TOKEN" -H "Content-Type: application/json" "https://api.dynu.com/v2/dns/$domain_id" 2>/dev/null)"; then
         bashio::log.debug "domain_id: ${domain_id}" "$LINENO" "${BASH_SOURCE[0]}"
     else
         bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}]" "Failed to get request domain configuration for $domain."
@@ -211,7 +211,10 @@ function _set_domain_config(){
     # Update Domain config
     bashio::log.info "Updating Dynu DNS: ${domain} Domain Configuration"
 
-    answer="$(curl -s -f -X POST -H "API-Key: $DNS_API_TOKEN" -H "Content-Type: application/json" "https://api.dynu.com/v2/dns/$domain_id" -d "$new_domain_config")"
+    if ! answer="$(curl -s -f -m 30 --retry 2 -X POST -H "API-Key: $DNS_API_TOKEN" -H "Content-Type: application/json" "https://api.dynu.com/v2/dns/$domain_id" -d "$new_domain_config" 2>/dev/null)"; then
+        bashio::log.error "[${FUNCNAME[0]}]" "Failed to update DNS record for domain $domain"
+        return 1
+    fi
     statusCode=$(echo "$answer" | jq '.statusCode')
 
     if [ "$statusCode" -eq 200 ]; then
@@ -268,9 +271,9 @@ _dynu_rest() {
 
   bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Performing REST API method: $m to endpoint: $DNS_API_ENDPOINT/$ep"
   if [ "$data" ]; then
-    response=$(curl -s -H "$_H1" -H "$_H2" -X $m "$DNS_API_ENDPOINT/$ep" -d $data) # outgoing
+    response=$(curl -s -H "$_H1" -H "$_H2" -X "$m" "$DNS_API_ENDPOINT/$ep" -d "$data") # outgoing
   else
-    response=$(curl -s -H "$_H1" -H "$_H2" -X $m "$DNS_API_ENDPOINT/$ep") # incoming
+    response=$(curl -s -H "$_H1" -H "$_H2" -X "$m" "$DNS_API_ENDPOINT/$ep") # incoming
   fi
 
   local ret=$?

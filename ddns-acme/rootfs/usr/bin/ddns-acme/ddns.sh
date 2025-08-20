@@ -5,8 +5,79 @@ QUERY_URL_IPV4="https://ipv4.text.wtfismyip.com"
 QUERY_URL_IPV6="https://ipv6.text.wtfismyip.com"
 LAST_IP_UPDATE_FILE="/data/last_ip_update"
 
+function is_valid_ipv4() {
+    local ip="$1"
+    local ipv4_regex="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
+    
+    if [[ ! $ip =~ $ipv4_regex ]]; then
+        return 1
+    fi
+    
+    # Check each octet is between 0-255
+    IFS='.' read -ra octets <<< "$ip"
+    for octet in "${octets[@]}"; do
+        if [[ $octet -gt 255 ]] || [[ $octet -lt 0 ]] || [[ ${#octet} -gt 1 && ${octet:0:1} == "0" ]]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+function is_valid_ipv6() {
+    local ip="$1"
+    # Simplified IPv6 validation - checks for hex chars and colons
+    local ipv6_regex="^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$|^::1$|^::$"
+    
+    if [[ $ip =~ $ipv6_regex ]]; then
+        return 0
+    fi
+    return 1
+}
+
+function validate_ip_address() {
+    local ip="$1"
+    local ip_type="$2"  # "ipv4" or "ipv6"
+    
+    case "$ip_type" in
+        "ipv4")
+            if is_valid_ipv4 "$ip"; then
+                bashio::log.debug "[${FUNCNAME[0]}]" "$ip is a valid IPv4 address"
+                return 0
+            else
+                bashio::log.warning "[${FUNCNAME[0]}]" "$ip is not a valid IPv4 address"
+                return 1
+            fi
+            ;;
+        "ipv6")
+            if is_valid_ipv6 "$ip"; then
+                bashio::log.debug "[${FUNCNAME[0]}]" "$ip is a valid IPv6 address"
+                return 0
+            else
+                bashio::log.warning "[${FUNCNAME[0]}]" "$ip is not a valid IPv6 address"
+                return 1
+            fi
+            ;;
+        *)
+            bashio::log.error "[${FUNCNAME[0]}]" "Unknown IP type: $ip_type"
+            return 1
+            ;;
+    esac
+}
+
 function is_domain() {
     local domain="$1"
+    
+    # Input sanitization
+    if [[ -z "$domain" ]]; then
+        bashio::log.warning "[${FUNCNAME[0]}]" "Empty domain name provided"
+        return 1
+    fi
+    
+    # Check length limits
+    if [[ ${#domain} -gt 255 ]]; then
+        bashio::log.warning "[${FUNCNAME[0]}]" "Domain name too long: $domain (max 255 chars)"
+        return 1
+    fi
 
     # Regex for checking if a string is a domain name with at least one period
     # This pattern checks for a sequence of alphanumeric characters (including hyphens)
@@ -29,13 +100,16 @@ function hassio_determine_ipv4_address(){
             return 0
             ;;
         "query external server")
-            ipv4_queried=$(curl -s -f -m 10 "${QUERY_URL_IPV4}")
-            if [[ ${ipv4_queried} == *.* ]]; then
+            if ! ipv4_queried=$(curl -s -f -m 10 --retry 3 "${QUERY_URL_IPV4}" 2>/dev/null); then
+                bashio::log.error "[${FUNCNAME[0]}]" "Failed to query IPv4 address from ${QUERY_URL_IPV4}"
+                return 2
+            fi
+            if validate_ip_address "${ipv4_queried}" "ipv4"; then
                 bashio::log.info "[${FUNCNAME[0]}]" "According to: ${QUERY_URL_IPV4} , IPv4 address is ${ipv4_queried}"
                 current_ipv4_address=${ipv4_queried}
                 return 0
             else
-                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears ipv4_queried: ${ipv4_queried} returned from ${QUERY_URL_IPV4} is not an IP address"
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid IPv4 address received: ${ipv4_queried} from ${QUERY_URL_IPV4}"
                 return 1
             fi
             ;;
@@ -50,12 +124,12 @@ function hassio_determine_ipv4_address(){
             fi
             ;;
         "use fixed address")
-            if [[ -n "$IPV4_FIXED" && ${IPV4_FIXED} == *.* ]]; then
+            if [[ -n "$IPV4_FIXED" ]] && validate_ip_address "$IPV4_FIXED" "ipv4"; then
                 bashio::log.info "Using fixed IPv4 address: ${IPV4_FIXED}"
                 current_ipv4_address=${IPV4_FIXED}
                 return 0
             else
-                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid or missing fixed IPv4 address"
+                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid or missing fixed IPv4 address: ${IPV4_FIXED}"
                 return 1
             fi
             ;;
@@ -73,13 +147,16 @@ function hassio_determine_ipv6_address(){
             return 0
             ;;
         "query external server")
-            ipv6_queried=$(curl -s -f -m 10 "${QUERY_URL_IPV6}")
-            if [[ ${ipv6_queried} == *:* ]]; then
+            if ! ipv6_queried=$(curl -s -f -m 10 --retry 3 "${QUERY_URL_IPV6}" 2>/dev/null); then
+                bashio::log.error "[${FUNCNAME[0]}]" "Failed to query IPv6 address from ${QUERY_URL_IPV6}"
+                return 2
+            fi
+            if validate_ip_address "${ipv6_queried}" "ipv6"; then
                 bashio::log.info "[${FUNCNAME[0]}]" "According to: ${QUERY_URL_IPV6} , IPv6 address is ${ipv6_queried}"
                 current_ipv6_address=${ipv6_queried}
                 return 0
             else
-                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "It appears ipv6_queried: ${ipv6_queried} returned from ${QUERY_URL_IPV6} is not an IP address"
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid IPv6 address received: ${ipv6_queried} from ${QUERY_URL_IPV6}"
                 return 1
             fi
             ;;
@@ -97,12 +174,12 @@ function hassio_determine_ipv6_address(){
             return 1
             ;;
         "use fixed address")
-            if [[ -n "$IPV6_FIXED" && ${IPV6_FIXED} == *:* ]]; then
+            if [[ -n "$IPV6_FIXED" ]] && validate_ip_address "$IPV6_FIXED" "ipv6"; then
                 bashio::log.info "Using fixed IPv6 address: ${IPV6_FIXED}"
                 current_ipv6_address=${IPV6_FIXED}
                 return 0
             else
-                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid or missing fixed IPv6 address"
+                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Invalid or missing fixed IPv6 address: ${IPV6_FIXED}"
                 return 1
             fi
             ;;
@@ -149,7 +226,7 @@ function hassio_get_config_variables(){
     fi
 
     # Check if DOMAINS are valid domains.
-    for domain in ${DOMAINS}; do
+    for domain in "${DOMAINS}"; do
        if is_domain $domain; then
             bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "domain $domain is a valid domain."
         else
@@ -159,7 +236,7 @@ function hassio_get_config_variables(){
     done
 
     # Check if ALIASES are valid domains.
-    for domain in $ALIASES; do
+    for domain in "$ALIASES"; do
         for alias in $domain; do
             if is_domain $alias; then
                 bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "alias $domain is a valid domain."
@@ -208,7 +285,7 @@ function update_dns_ip_addresses(){
     fi
 
     # Update each domain
-    for domain in ${DOMAINS}; do
+    for domain in "${DOMAINS}"; do
         if [ "$DNS_PROVIDER_NAME" = "dynu" ]; then
             if ! dns_dynu_update_ipv4_ipv6 "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
                 bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update Dynu DNS IP address records for domain: $domain"
@@ -265,7 +342,7 @@ function check_ip_differences_and_get_addresses() {
             bashio::log.debug "Current local IPv4: $local_ipv4"
             
             # Check each domain's IPv4 record
-            for domain in ${DOMAINS}; do
+            for domain in "${DOMAINS}"; do
                 local dns_ipv4
                 if dns_ipv4=$(get_dns_ip_address "$domain" "A" 2>/dev/null); then
                     if [ "$local_ipv4" != "$dns_ipv4" ]; then
@@ -290,7 +367,7 @@ function check_ip_differences_and_get_addresses() {
             bashio::log.debug "Current local IPv6: $local_ipv6"
             
             # Check each domain's IPv6 record
-            for domain in ${DOMAINS}; do
+            for domain in "${DOMAINS}"; do
                 local dns_ipv6
                 if dns_ipv6=$(get_dns_ip_address "$domain" "AAAA" 2>/dev/null); then
                     if [ "$local_ipv6" != "$dns_ipv6" ]; then

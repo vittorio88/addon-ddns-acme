@@ -22,7 +22,10 @@ dns_duckdns_add_txt_record() {
     local url="https://www.duckdns.org/update?domains=${duckdns_domain}&token=${duckdns_token}&txt=${txt_value}"
     
     local response
-    response=$(curl -s "$url")
+    if ! response=$(curl -s -f -m 30 --retry 2 "$url" 2>/dev/null); then
+        bashio::log.error "Failed to connect to DuckDNS API for ${domain}"
+        return 1
+    fi
 
     if [ "$response" != "OK" ]; then
         bashio::log.error "Failed to add TXT record for ${domain}. DuckDNS response: ${response}"
@@ -50,7 +53,10 @@ dns_duckdns_rm_txt_record() {
     local url="https://www.duckdns.org/update?domains=${duckdns_domain}&token=${duckdns_token}&txt="
     
     local response
-    response=$(curl -s "$url")
+    if ! response=$(curl -s -f -m 30 --retry 2 "$url" 2>/dev/null); then
+        bashio::log.error "Failed to connect to DuckDNS API for ${domain} (remove TXT)"
+        return 1
+    fi
 
     if [ "$response" != "OK" ]; then
         bashio::log.error "Failed to remove TXT record for ${domain}. DuckDNS response: ${response}"
@@ -77,7 +83,10 @@ dns_duckdns_update() {
     local url="https://www.duckdns.org/update?domains=${duckdns_domain}&token=${duckdns_token}&ip=${ipv4}&ipv6=${ipv6}"
     
     local response
-    response=$(curl -s "$url")
+    if ! response=$(curl -s -f -m 30 --retry 2 "$url" 2>/dev/null); then
+        bashio::log.error "Failed to connect to DuckDNS API for ${domain} (update DNS)"
+        return 1
+    fi
 
     if [ "$response" != "OK" ]; then
         bashio::log.error "Failed to update DNS for ${domain}. DuckDNS response: ${response}"
