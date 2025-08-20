@@ -1,5 +1,13 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.3.4] - 2025-08-20
+
+- Refactor startup initialization into dedicated `perform_startup_initialization()` function
+- Extract main loop logic into `run_main_loop()` function for better code organization
+- Replace temporary file I/O with global variables for improved performance
+- Eliminate filesystem operations during startup IP checks
+- Improve code maintainability with modular function-based architecture
+
 ## [1.3.3] - 2025-08-20
 
 - Fix bug where addon would halt when no IP differences were detected on startup

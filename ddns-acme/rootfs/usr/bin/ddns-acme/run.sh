@@ -90,16 +90,24 @@ if ! acme_init $ACME_TERMS_ACCEPTED; then
         exit 1
 fi
 
-# Check for IP differences on startup (before entering the main loop)
-# Wrap the entire startup check to ensure it never causes the script to exit
-(
+# Global variables to track startup results
+startup_check_result=2
+startup_ipv4=""
+startup_ipv6=""
+startup_update_performed=false
+
+# Function to perform startup initialization and IP check
+perform_startup_initialization() {
     bashio::log.info "[DDNS-ACME - Add-On]" "Checking for IP address differences on startup..."
     
+    # Perform IP check and capture results
+    local startup_ip_result
     startup_ip_result=$(check_ip_differences_and_get_addresses)
     startup_check_result=$?
-    bashio::log.debug "[DDNS-ACME - Add-On]" "IP check function returned code: $startup_check_result"
     startup_ipv4=$(echo "$startup_ip_result" | cut -d'|' -f1)
     startup_ipv6=$(echo "$startup_ip_result" | cut -d'|' -f2)
+    
+    bashio::log.debug "[DDNS-ACME - Add-On]" "IP check function returned code: $startup_check_result"
     bashio::log.debug "[DDNS-ACME - Add-On]" "Parsed IPs: IPv4='$startup_ipv4' IPv6='$startup_ipv6'"
 
     # Handle different return codes from the IP check
@@ -109,75 +117,99 @@ fi
             bashio::log.info "[DDNS-ACME - Add-On]" "IP address differences detected on startup, performing immediate DDNS update"
             if update_dns_ip_addresses "$startup_ipv4" "$startup_ipv6"; then
                 bashio::log.info "[DDNS-ACME - Add-On]" "Startup DDNS update succeeded."
+                startup_update_performed=true
             else
                 bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Startup DDNS update failed."
+                startup_update_performed=false
             fi
             ;;
         1)
             # No differences found - this is normal, continue
             bashio::log.info "[DDNS-ACME - Add-On]" "No IP address differences detected on startup, skipping immediate update"
+            startup_update_performed=false
             ;;
         2)
             # Check failed but not fatal - log warning and continue
             bashio::log.warning "[DDNS-ACME - Add-On]" "IP address check failed on startup, skipping immediate update"
+            startup_update_performed=false
             ;;
         *)
             # Unexpected return code - log warning and continue
             bashio::log.warning "[DDNS-ACME - Add-On]" "Unexpected result from IP check (code: $startup_check_result), skipping immediate update"
+            startup_update_performed=false
             ;;
     esac
     
     bashio::log.info "[DDNS-ACME - Add-On]" "Startup IP check completed successfully, continuing to main loop"
-    
-    # Always return success from this subshell
-    exit 0
-) || {
-    # If the startup check somehow fails catastrophically, log it but continue
-    bashio::log.warning "[DDNS-ACME - Add-On]" "Startup IP check encountered an error, but continuing with normal operation"
+    return 0
 }
-bashio::log.info "[DDNS-ACME - Add-On]" "Entering main DDNS-ACME Renew loop"
-while true; do
-    now="$(date +%s)"
-    last_ip_update=$(get_last_ip_update_time)
-    last_acme_op=$(get_last_acme_op_time)
-    ip_update_interval=$((now - last_ip_update))
-    acme_op_interval=$((now - last_acme_op))
 
-    # Perform DDNS update if necessary
-    if [ $ip_update_interval -ge $IP_UPDATE_WAIT_SECONDS ]; then
-        if update_dns_ip_addresses; then
-            bashio::log.info "[DDNS-ACME - Add-On]" "DDNS update succeeded."
+# Perform startup initialization with error handling
+if ! perform_startup_initialization; then
+    bashio::log.warning "[DDNS-ACME - Add-On]" "Startup IP check encountered an error, but continuing with normal operation"
+fi
+# Function to run the main DDNS-ACME renewal loop
+run_main_loop() {
+    local first_iteration=true
+    
+    bashio::log.info "[DDNS-ACME - Add-On]" "Entering main DDNS-ACME Renew loop"
+    
+    while true; do
+        local now="$(date +%s)"
+        local last_ip_update=$(get_last_ip_update_time)
+        local last_acme_op=$(get_last_acme_op_time)
+        local ip_update_interval=$((now - last_ip_update))
+        local acme_op_interval=$((now - last_acme_op))
+
+        # Perform DDNS update if necessary
+        if [ $ip_update_interval -ge $IP_UPDATE_WAIT_SECONDS ]; then
+            # On the first iteration, if startup already performed an update, skip it to avoid duplicate checking
+            if [ "$first_iteration" = true ] && [ "$startup_update_performed" = true ]; then
+                bashio::log.info "[DDNS-ACME - Add-On]" "Skipping first iteration DDNS update - already performed at startup"
+            else
+                # For first iteration without startup update, or subsequent iterations, check normally
+                if update_dns_ip_addresses; then
+                    bashio::log.info "[DDNS-ACME - Add-On]" "DDNS update succeeded."
+                else
+                    bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "DDNS update failed."
+                fi
+            fi
         else
-            bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "DDNS update failed."
+            bashio::log.info "[DDNS-ACME - Add-On]" "Skipping DDNS update. Time since last update: $(seconds_to_human_readable $ip_update_interval)"
         fi
-    else
-        bashio::log.info "[DDNS-ACME - Add-On]" "Skipping DDNS update. Time since last update: $(seconds_to_human_readable $ip_update_interval)"
-    fi
 
-    # Perform ACME renewal if necessary
-    if [ $acme_op_interval -ge $ACME_RENEW_WAIT_SECONDS ]; then
-        if acme_renew "$ACME_PROVIDER_NAME" "$ACME_TERMS_ACCEPTED" "$DNS_PROVIDER_NAME" "$DOMAINS" "$ALIASES"; then
-            bashio::log.info "[DDNS-ACME - Add-On]" "ACME renew succeeded."
+        # Perform ACME renewal if necessary
+        if [ $acme_op_interval -ge $ACME_RENEW_WAIT_SECONDS ]; then
+            if acme_renew "$ACME_PROVIDER_NAME" "$ACME_TERMS_ACCEPTED" "$DNS_PROVIDER_NAME" "$DOMAINS" "$ALIASES"; then
+                bashio::log.info "[DDNS-ACME - Add-On]" "ACME renew succeeded."
+            else
+                bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "ACME renew failed."
+            fi
         else
-            bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "ACME renew failed."
+            bashio::log.info "[DDNS-ACME - Add-On]" "Skipping ACME renewal. Time since last renewal: $(seconds_to_human_readable $acme_op_interval)"
         fi
-    else
-        bashio::log.info "[DDNS-ACME - Add-On]" "Skipping ACME renewal. Time since last renewal: $(seconds_to_human_readable $acme_op_interval)"
-    fi
 
-    # Calculate next update times
-    next_ip_update=$((last_ip_update + IP_UPDATE_WAIT_SECONDS))
-    next_acme_op=$((last_acme_op + ACME_RENEW_WAIT_SECONDS))
+        # Calculate next update times
+        local next_ip_update=$((last_ip_update + IP_UPDATE_WAIT_SECONDS))
+        local next_acme_op=$((last_acme_op + ACME_RENEW_WAIT_SECONDS))
 
-    # Calculate sleep duration
-    sleep_duration=$((IP_UPDATE_WAIT_SECONDS < ACME_RENEW_WAIT_SECONDS ? IP_UPDATE_WAIT_SECONDS : ACME_RENEW_WAIT_SECONDS))
-    sleep_until=$((now + sleep_duration))
+        # Calculate sleep duration
+        local sleep_duration=$((IP_UPDATE_WAIT_SECONDS < ACME_RENEW_WAIT_SECONDS ? IP_UPDATE_WAIT_SECONDS : ACME_RENEW_WAIT_SECONDS))
 
-    # Print information about updates and next scheduled operations
-    bashio::log.info "Last IP update: $(seconds_to_hours_minutes $((now - last_ip_update))) ago | Next IP update: in $(seconds_to_hours_minutes $((next_ip_update - now)))"
-    bashio::log.info "Last ACME operation: $(seconds_to_human_readable $((now - last_acme_op))) ago | Next ACME operation: in $(seconds_to_human_readable $((next_acme_op - now)))"
-    bashio::log.info "Sleep duration: $(seconds_to_human_readable $sleep_duration)"
+        # Print information about updates and next scheduled operations
+        bashio::log.info "Last IP update: $(seconds_to_hours_minutes $((now - last_ip_update))) ago | Next IP update: in $(seconds_to_hours_minutes $((next_ip_update - now)))"
+        bashio::log.info "Last ACME operation: $(seconds_to_human_readable $((now - last_acme_op))) ago | Next ACME operation: in $(seconds_to_human_readable $((next_acme_op - now)))"
+        bashio::log.info "Sleep duration: $(seconds_to_human_readable $sleep_duration)"
 
-    # Sleep until the next operation
-    sleep $sleep_duration
-done
+        # Reset first iteration flag after the first loop
+        if [ "$first_iteration" = true ]; then
+            first_iteration=false
+        fi
+
+        # Sleep until the next operation
+        sleep $sleep_duration
+    done
+}
+
+# Start the main loop
+run_main_loop

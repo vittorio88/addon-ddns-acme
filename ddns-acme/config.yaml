@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: DDNS-ACME add-on
-version: "1.3.3"
+version: "1.3.4"
 slug: ddns-acme
 description: DDNS-ACME add-on
 url: "https://github.com/vittorio88/addon-ddns-acme/tree/main/ddns-acme"
