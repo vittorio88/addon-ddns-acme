@@ -3,6 +3,7 @@
 ## [2.0.0] - 2025-08-20
 
 ### Security & Reliability Improvements
+- Fix unbound variable issue when IPv4/IPv6 update methods are set to "skip"
 - Fix variable quoting in domain loops to prevent parsing errors
 - Improve curl command parameter handling for better security
 - Add comprehensive error handling with retries and timeouts for network operations

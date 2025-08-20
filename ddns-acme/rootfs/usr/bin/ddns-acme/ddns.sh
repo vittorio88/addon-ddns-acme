@@ -272,6 +272,10 @@ function update_dns_ip_addresses(){
             bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv4 address"
             return 1
         fi
+    else
+        # IPv4 update is skipped, set empty value
+        current_ipv4_address=""
+        bashio::log.debug "IPv4 update is skipped, using empty IPv4 address"
     fi
 
     if [ -n "$provided_ipv6" ] && [ "$IPV6_UPDATE_METHOD" != "skip update" ]; then
@@ -282,6 +286,10 @@ function update_dns_ip_addresses(){
         if ! hassio_determine_ipv6_address; then
             bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not determine IPv6 address"
         fi
+    else
+        # IPv6 update is skipped, set empty value
+        current_ipv6_address=""
+        bashio::log.debug "IPv6 update is skipped, using empty IPv6 address"
     fi
 
     # Update each domain
