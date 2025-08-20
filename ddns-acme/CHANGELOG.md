@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [2.0.0] - 2025-08-20
+
+### Security & Reliability Improvements
+- Fix variable quoting in domain loops to prevent parsing errors
+- Improve curl command parameter handling for better security
+- Add comprehensive error handling with retries and timeouts for network operations
+- Implement proper input validation for IP addresses and domains
+- Enhanced IPv4/IPv6 validation with `is_valid_ipv4()` and `is_valid_ipv6()` functions
+- Improved domain validation with length limits and better error messages
+
 ## [1.3.4] - 2025-08-20
 
 - Refactor startup initialization into dedicated `perform_startup_initialization()` function
