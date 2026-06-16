@@ -1,5 +1,22 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [2.1.0] - 2026-06-15
+
+### Added
+- Add optional `dns_accounts` configuration for provider-specific tokens and domain lists.
+- Support DDNS updates across Dynu and DuckDNS accounts in the same add-on configuration.
+- Add an ACME DNS hook dispatcher that selects the correct provider/token per challenge domain.
+
+### Changed
+- Keep the existing `dns_provider_name`, `dns_api_token`, and `domains` options as a backward-compatible legacy single-account configuration.
+
+## [2.0.1] - 2026-06-15
+
+### Fixed
+- Fix multi-domain DDNS handling for newline-delimited Home Assistant `domains` lists.
+- Iterate each configured domain separately during validation, startup IP difference checks, and DDNS updates.
+- Preserve separate domain arguments for ACME renewal when multiple domains are configured.
+
 ## [2.0.0] - 2025-08-20
 
 ### Security & Reliability Improvements

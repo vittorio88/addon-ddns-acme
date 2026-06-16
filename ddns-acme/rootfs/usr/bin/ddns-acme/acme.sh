@@ -82,10 +82,18 @@ function acme_renew() {
 
         local domain_args=()
         local aliases=''
+        local acme_domains
+
+        if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
+            acme_domains=$(jq -r '.[].domains[]' <<< "$DNS_ACCOUNTS_JSON")
+        else
+            acme_domains="$DOMAINS"
+        fi
 
         bashio::log.info "Renewing ACME for: $ACME_PROVIDER_NAME"
         # Prepare domain for ACME processing
-        for domain in ${DOMAINS}; do
+        for domain in $(printf '%s\n' "$acme_domains"); do
+            [ -z "$domain" ] && continue
             for alias in $(jq --raw-output --exit-status "[.aliases[]|{(.alias):.domain}]|add.\"$domain\" | select(. != null)" "$CONFIG_PATH") ; do
                 aliases="$aliases $alias"
                 bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "alias $alias is not a valid domain."
@@ -95,27 +103,34 @@ function acme_renew() {
 
         aliases="$(echo "${aliases}" | tr ' ' '\n' | sort | uniq)"
 
-        bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Combining DOMAINS and ALIASES into domain_args: ${DOMAINS} ${aliases}"
+        bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Combining DOMAINS and ALIASES into domain_args: ${acme_domains} ${aliases}"
 
-        for domain in $(echo "${DOMAINS}" "${aliases}" | tr ' ' '\n' | sort | uniq); do
+        for domain in $(printf '%s\n%s\n' "$acme_domains" "$aliases" | sort | uniq); do
+            [ -z "$domain" ] && continue
             bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "domain is: ${domain}"
             domain_args+=("--domain" "${domain}")
         done
 
-        # Determine the hook path based on DNS_PROVIDER_NAME
+        # Use a dispatcher hook when dns_accounts is available so each challenge
+        # can use the provider/token mapped to its domain. Fall back to the
+        # legacy single-provider hook when acme_renew is called standalone.
         local hook_path
-        case "$DNS_PROVIDER_NAME" in
-            "dynu")
-                hook_path="$DIR/hooks/hooks_dynu.sh"
-                ;;
-            "duckdns")
-                hook_path="$DIR/hooks/hooks_duckdns.sh"
-                ;;
-            *)
-                bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Unsupported DNS provider: $DNS_PROVIDER_NAME"
-                return 1
-                ;;
-        esac
+        if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
+            hook_path="$DIR/hooks/hooks_multi.sh"
+        else
+            case "$DNS_PROVIDER_NAME" in
+                "dynu")
+                    hook_path="$DIR/hooks/hooks_dynu.sh"
+                    ;;
+                "duckdns")
+                    hook_path="$DIR/hooks/hooks_duckdns.sh"
+                    ;;
+                *)
+                    bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Unsupported DNS provider: $DNS_PROVIDER_NAME"
+                    return 1
+                    ;;
+            esac
+        fi
 
         # Determine the ACME server based on ACME_PROVIDER_NAME
         local acme_server

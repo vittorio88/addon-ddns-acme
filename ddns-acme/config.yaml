@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: DDNS-ACME add-on
-version: "2.0.0"
+version: "2.1.0"
 slug: ddns-acme
 description: DDNS-ACME add-on
 url: "https://github.com/vittorio88/addon-ddns-acme/tree/main/ddns-acme"
@@ -29,6 +29,7 @@ options:
   ipv6_fixed: "" 
   ip_update_wait_seconds: 3600
   domains: []
+  dns_accounts: []
   aliases: []
   log_level: "info"
 schema:
@@ -45,6 +46,8 @@ schema:
   ipv6_fixed: "str?"
   ip_update_wait_seconds: "int"
   domains: ["str"]
+  dns_accounts:
+    [{provider: list(dynu|duckdns), token: "str", domains: ["str"]}]
   aliases:
     [{domain: "str", "alias": "str"}]
   log_level: list(trace|debug|info|notice|warning|error|fatal)

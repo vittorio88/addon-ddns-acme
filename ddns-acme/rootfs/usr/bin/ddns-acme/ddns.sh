@@ -190,6 +190,65 @@ function hassio_determine_ipv6_address(){
     esac
 }
 
+function build_dns_accounts_json() {
+    if jq -e '(.dns_accounts // []) | length > 0' "$CONFIG_PATH" >/dev/null; then
+        DNS_ACCOUNTS_JSON=$(jq -c '[.dns_accounts[] | {provider: .provider, token: .token, domains: (.domains // [])}]' "$CONFIG_PATH")
+    else
+        DNS_ACCOUNTS_JSON=$(jq -cn \
+            --arg provider "$DNS_PROVIDER_NAME" \
+            --arg token "$DNS_API_TOKEN" \
+            --arg domains "$DOMAINS" \
+            '[{provider: $provider, token: $token, domains: ($domains | split("\n") | map(select(length > 0)))}]')
+    fi
+    export DNS_ACCOUNTS_JSON
+}
+
+function configured_domains() {
+    if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
+        jq -r '.[].domains[]' <<< "$DNS_ACCOUNTS_JSON"
+    else
+        printf '%s\n' "$DOMAINS"
+    fi
+}
+
+function validate_dns_accounts() {
+    local account provider token domains
+
+    while IFS= read -r account; do
+        provider=$(jq -r '.provider // empty' <<< "$account")
+        token=$(jq -r '.token // empty' <<< "$account")
+        domains=$(jq -r '.domains[]? // empty' <<< "$account")
+
+        case "$provider" in
+            dynu|duckdns) ;;
+            *)
+                bashio::log.warning "Unsupported DNS account provider: $provider"
+                return 1
+                ;;
+        esac
+
+        if [ -z "$token" ]; then
+            bashio::log.warning "Missing DNS API token for provider: $provider"
+            return 1
+        fi
+
+        if [ -z "$domains" ]; then
+            bashio::log.warning "DNS account for provider $provider has no domains"
+            return 1
+        fi
+
+        while IFS= read -r domain; do
+            [ -z "$domain" ] && continue
+            if is_domain "$domain"; then
+                bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "domain $domain is a valid domain."
+            else
+                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "domain $domain is not a valid domain... "
+                return 1
+            fi
+        done <<< "$domains"
+    done < <(jq -c '.[]' <<< "$DNS_ACCOUNTS_JSON")
+}
+
 function hassio_get_config_variables(){
 
     if bashio::config.has_value "ipv4_fixed"; then IPV4_FIXED=$(bashio::config 'ipv4_fixed'); else IPV4_FIXED=""; fi
@@ -225,15 +284,10 @@ function hassio_get_config_variables(){
         bashio::log.info "Log level set to: ${LOG_LEVEL}"
     fi
 
-    # Check if DOMAINS are valid domains.
-    for domain in "${DOMAINS}"; do
-       if is_domain $domain; then
-            bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "domain $domain is a valid domain."
-        else
-            bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "domain $domain is not a valid domain... "
-            return 1
-        fi
-    done
+    build_dns_accounts_json
+    if ! validate_dns_accounts; then
+        return 1
+    fi
 
     # Check if ALIASES are valid domains.
     for domain in "$ALIASES"; do
@@ -248,10 +302,10 @@ function hassio_get_config_variables(){
     done
 
     # Check if /data/options.json is healthy
-    if jq "select(.domain != null)" "$CONFIG_PATH" ; then
-        bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "jq \"select(.domain != null)\" /data/options.json returned 0"
+    if jq -e '((.domains // []) | length > 0) or ((.dns_accounts // []) | length > 0)' "$CONFIG_PATH" >/dev/null; then
+        bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "DNS domain configuration is present"
     else
-        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "jq \"select(.domain != null)\" /data/options.json did not 0"
+        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "No domains or dns_accounts configured"
         return 1
     fi
 
@@ -292,20 +346,43 @@ function update_dns_ip_addresses(){
         bashio::log.debug "IPv6 update is skipped, using empty IPv6 address"
     fi
 
-    # Update each domain
-    for domain in "${DOMAINS}"; do
-        if [ "$DNS_PROVIDER_NAME" = "dynu" ]; then
-            if ! dns_dynu_update_ipv4_ipv6 "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
-                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update Dynu DNS IP address records for domain: $domain"
-                return 1
+    # Update each domain for each configured DNS account. Legacy config is normalized
+    # into a single account by build_dns_accounts_json().
+    local original_dns_api_token="$DNS_API_TOKEN"
+    local original_dns_provider_name="$DNS_PROVIDER_NAME"
+    local account account_provider account_token domain
+    while IFS= read -r account; do
+        account_provider=$(jq -r '.provider' <<< "$account")
+        account_token=$(jq -r '.token' <<< "$account")
+        DNS_PROVIDER_NAME="$account_provider"
+        DNS_API_TOKEN="$account_token"
+        export DNS_API_TOKEN
+
+        while IFS= read -r domain; do
+            [ -z "$domain" ] && continue
+            if [ "$account_provider" = "dynu" ]; then
+                if ! dns_dynu_update_ipv4_ipv6 "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
+                    bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update Dynu DNS IP address records for domain: $domain"
+                    DNS_API_TOKEN="$original_dns_api_token"
+                    DNS_PROVIDER_NAME="$original_dns_provider_name"
+                    export DNS_API_TOKEN
+                    return 1
+                fi
+            elif [ "$account_provider" = "duckdns" ]; then
+                if ! dns_duckdns_update "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
+                    bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update DuckDNS IP address records for domain: $domain"
+                    DNS_API_TOKEN="$original_dns_api_token"
+                    DNS_PROVIDER_NAME="$original_dns_provider_name"
+                    export DNS_API_TOKEN
+                    return 1
+                fi
             fi
-        elif [ "$DNS_PROVIDER_NAME" = "duckdns" ]; then
-            if ! dns_duckdns_update "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
-                bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update DuckDNS IP address records for domain: $domain"
-                return 1
-            fi
-        fi
-    done
+        done < <(jq -r '.domains[]' <<< "$account")
+    done < <(jq -c '.[]' <<< "$DNS_ACCOUNTS_JSON")
+
+    DNS_API_TOKEN="$original_dns_api_token"
+    DNS_PROVIDER_NAME="$original_dns_provider_name"
+    export DNS_API_TOKEN
 
     echo "$(date +%s)" > "${LAST_IP_UPDATE_FILE}"
     return 0
@@ -349,8 +426,9 @@ function check_ip_differences_and_get_addresses() {
             local_ipv4="$current_ipv4_address"
             bashio::log.debug "Current local IPv4: $local_ipv4"
             
-            # Check each domain's IPv4 record
-            for domain in "${DOMAINS}"; do
+            # Check each domain's IPv4 record.
+            while IFS= read -r domain; do
+                [ -z "$domain" ] && continue
                 local dns_ipv4
                 if dns_ipv4=$(get_dns_ip_address "$domain" "A" 2>/dev/null); then
                     if [ "$local_ipv4" != "$dns_ipv4" ]; then
@@ -361,7 +439,7 @@ function check_ip_differences_and_get_addresses() {
                     bashio::log.info "No IPv4 record found in DNS for $domain, local IPv4 is $local_ipv4"
                     differences_found=true
                 fi
-            done
+            done < <(configured_domains)
         else
             bashio::log.warning "Could not determine IPv4 address for startup check"
             check_failed=true
@@ -374,8 +452,9 @@ function check_ip_differences_and_get_addresses() {
             local_ipv6="$current_ipv6_address"
             bashio::log.debug "Current local IPv6: $local_ipv6"
             
-            # Check each domain's IPv6 record
-            for domain in "${DOMAINS}"; do
+            # Check each domain's IPv6 record.
+            while IFS= read -r domain; do
+                [ -z "$domain" ] && continue
                 local dns_ipv6
                 if dns_ipv6=$(get_dns_ip_address "$domain" "AAAA" 2>/dev/null); then
                     if [ "$local_ipv6" != "$dns_ipv6" ]; then
@@ -386,7 +465,7 @@ function check_ip_differences_and_get_addresses() {
                     bashio::log.info "No IPv6 record found in DNS for $domain, local IPv6 is $local_ipv6"
                     differences_found=true
                 fi
-            done
+            done < <(configured_domains)
         else
             bashio::log.warning "Could not determine IPv6 address for startup check"
         fi

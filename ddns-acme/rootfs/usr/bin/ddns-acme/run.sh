@@ -21,22 +21,12 @@ export DOMAINS
 bashio::log.info "DNS API Token (masked): ${DNS_API_TOKEN:0:4}...${DNS_API_TOKEN: -4}"
 bashio::log.info "Domains: $DOMAINS"
 
-# Source the appropriate DNS script based on the configuration
+# Source all supported DNS scripts. DDNS/ACME dispatch selects the configured
+# provider per DNS account at runtime.
 DNS_PROVIDER_NAME=$(bashio::config 'dns_provider_name')
 bashio::log.info "DNS Provider: $DNS_PROVIDER_NAME"
-
-case "$DNS_PROVIDER_NAME" in
-    "dynu")
-        source "$DIR/dnsapi/dns_dynu.sh"
-        ;;
-    "duckdns")
-        source "$DIR/dnsapi/dns_duckdns.sh"
-        ;;
-    *)
-        bashio::log.error "Unsupported DNS provider: $DNS_PROVIDER_NAME"
-        exit 1
-        ;;
-esac
+source "$DIR/dnsapi/dns_dynu.sh"
+source "$DIR/dnsapi/dns_duckdns.sh"
 
 source "$DIR/acme.sh"
 source "$DIR/ddns.sh"
