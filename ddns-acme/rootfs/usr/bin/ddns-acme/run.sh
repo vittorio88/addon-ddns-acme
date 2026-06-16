@@ -16,6 +16,7 @@ DNS_PROVIDER_NAME=""
 export DNS_API_TOKEN
 source "$DIR/dnsapi/dns_dynu.sh"
 source "$DIR/dnsapi/dns_duckdns.sh"
+source "$DIR/dnsapi/dns_cloudflare.sh"
 
 source "$DIR/acme.sh"
 source "$DIR/ddns.sh"

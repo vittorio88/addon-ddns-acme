@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [3.1.0] - 2026-06-15
+
+### Added
+- Add Cloudflare as a supported `dns_accounts[].provider` for DDNS A/AAAA updates.
+- Add Cloudflare DNS-01 TXT challenge deployment and cleanup through the multi-provider ACME hook dispatcher.
+
 ## [3.0.0] - 2026-06-15
 
 ### 💥 Breaking changes

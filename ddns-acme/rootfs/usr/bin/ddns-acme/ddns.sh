@@ -237,7 +237,7 @@ function validate_dns_accounts() {
         domains=$(jq -r '.domains[]? // empty' <<< "$account")
 
         case "$provider" in
-            dynu|duckdns) ;;
+            dynu|duckdns|cloudflare) ;;
             *)
                 bashio::log.warning "Unsupported DNS account provider: $provider"
                 return 1
@@ -388,6 +388,14 @@ function update_dns_ip_addresses(){
             elif [ "$account_provider" = "duckdns" ]; then
                 if ! dns_duckdns_update "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
                     bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update DuckDNS IP address records for domain: $domain"
+                    DNS_API_TOKEN="$original_dns_api_token"
+                    DNS_PROVIDER_NAME="$original_dns_provider_name"
+                    export DNS_API_TOKEN
+                    return 1
+                fi
+            elif [ "$account_provider" = "cloudflare" ]; then
+                if ! dns_cloudflare_update "$domain" "$current_ipv4_address" "$current_ipv6_address"; then
+                    bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not update Cloudflare DNS IP address records for domain: $domain"
                     DNS_API_TOKEN="$original_dns_api_token"
                     DNS_PROVIDER_NAME="$original_dns_provider_name"
                     export DNS_API_TOKEN

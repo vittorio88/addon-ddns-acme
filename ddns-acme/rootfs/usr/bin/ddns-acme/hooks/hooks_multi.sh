@@ -8,6 +8,7 @@ DNS_API_TOKEN=${DNS_API_TOKEN:-unused-during-hook-dispatch-source}
 
 source "$DIR/../dnsapi/dns_dynu.sh"
 source "$DIR/../dnsapi/dns_duckdns.sh"
+source "$DIR/../dnsapi/dns_cloudflare.sh"
 
 SYS_CERTFILE=$(jq --raw-output '.certfile' "$CONFIG_PATH")
 SYS_KEYFILE=$(jq --raw-output '.keyfile' "$CONFIG_PATH")
@@ -72,6 +73,9 @@ deploy_challenge() {
         duckdns)
             dns_duckdns_add_txt_record "$ALIAS" "$TOKEN_VALUE"
             ;;
+        cloudflare)
+            dns_cloudflare_add_txt_record "$ALIAS" "$TOKEN_VALUE"
+            ;;
         *)
             bashio::log.error "Unsupported DNS provider for ACME challenge: $DNS_PROVIDER_NAME"
             return 1
@@ -95,6 +99,9 @@ clean_challenge() {
             ;;
         duckdns)
             dns_duckdns_rm_txt_record "$ALIAS" "$TOKEN_VALUE"
+            ;;
+        cloudflare)
+            dns_cloudflare_rm_txt_record "$ALIAS" "$TOKEN_VALUE"
             ;;
         *)
             bashio::log.error "Unsupported DNS provider for ACME cleanup: $DNS_PROVIDER_NAME"
