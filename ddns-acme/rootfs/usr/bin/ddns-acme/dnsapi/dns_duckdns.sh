@@ -1,11 +1,7 @@
 #!/usr/bin/with-contenv bashio
 # shellcheck disable=SC2034
 
-# Check if DNS_API_TOKEN is set
-if [ -z "$DNS_API_TOKEN" ]; then
-    bashio::log.error "DNS_API_TOKEN is not set. Please make sure it's configured correctly in the add-on settings."
-    exit 1
-fi
+# DNS_API_TOKEN is supplied per dns_accounts entry at dispatch time.
 
 dns_duckdns_add_txt_record() {
     local domain="${1}"

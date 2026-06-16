@@ -74,9 +74,7 @@ function acme_init(){
 function acme_renew() {
     local ACME_PROVIDER_NAME=$1
     local ACME_TERMS_ACCEPTED=$2
-    local DNS_PROVIDER_NAME=$3
-    local DOMAINS=$4
-    local ALIASES=$5
+    local ALIASES=${3:-}
 
     if $ACME_TERMS_ACCEPTED; then
 
@@ -84,11 +82,7 @@ function acme_renew() {
         local aliases=''
         local acme_domains
 
-        if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
-            acme_domains=$(jq -r '.[].domains[]' <<< "$DNS_ACCOUNTS_JSON")
-        else
-            acme_domains="$DOMAINS"
-        fi
+        acme_domains=$(jq -r '.[].domains[]' <<< "$DNS_ACCOUNTS_JSON")
 
         bashio::log.info "Renewing ACME for: $ACME_PROVIDER_NAME"
         # Prepare domain for ACME processing
@@ -111,26 +105,9 @@ function acme_renew() {
             domain_args+=("--domain" "${domain}")
         done
 
-        # Use a dispatcher hook when dns_accounts is available so each challenge
-        # can use the provider/token mapped to its domain. Fall back to the
-        # legacy single-provider hook when acme_renew is called standalone.
-        local hook_path
-        if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
-            hook_path="$DIR/hooks/hooks_multi.sh"
-        else
-            case "$DNS_PROVIDER_NAME" in
-                "dynu")
-                    hook_path="$DIR/hooks/hooks_dynu.sh"
-                    ;;
-                "duckdns")
-                    hook_path="$DIR/hooks/hooks_duckdns.sh"
-                    ;;
-                *)
-                    bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "Unsupported DNS provider: $DNS_PROVIDER_NAME"
-                    return 1
-                    ;;
-            esac
-        fi
+        # Always use the dns_accounts dispatcher hook; legacy single-provider
+        # hooks are no longer selected from add-on config.
+        local hook_path="$DIR/hooks/hooks_multi.sh"
 
         # Determine the ACME server based on ACME_PROVIDER_NAME
         local acme_server

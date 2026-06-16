@@ -9,22 +9,11 @@ CONFIG_PATH=/data/options.json
 # Find Basepath
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-# Set DNS_API_TOKEN
-DNS_API_TOKEN=$(bashio::config 'dns_api_token')
-export DNS_API_TOKEN
-
-# Set DOMAINS
-DOMAINS=$(bashio::config 'domains')
-export DOMAINS
-
-# Debug: Print token (masked) and domains
-bashio::log.info "DNS API Token (masked): ${DNS_API_TOKEN:0:4}...${DNS_API_TOKEN: -4}"
-bashio::log.info "Domains: $DOMAINS"
-
 # Source all supported DNS scripts. DDNS/ACME dispatch selects the configured
 # provider per DNS account at runtime.
-DNS_PROVIDER_NAME=$(bashio::config 'dns_provider_name')
-bashio::log.info "DNS Provider: $DNS_PROVIDER_NAME"
+DNS_API_TOKEN=""
+DNS_PROVIDER_NAME=""
+export DNS_API_TOKEN
 source "$DIR/dnsapi/dns_dynu.sh"
 source "$DIR/dnsapi/dns_duckdns.sh"
 
@@ -170,7 +159,7 @@ run_main_loop() {
 
         # Perform ACME renewal if necessary
         if [ $acme_op_interval -ge $ACME_RENEW_WAIT_SECONDS ]; then
-            if acme_renew "$ACME_PROVIDER_NAME" "$ACME_TERMS_ACCEPTED" "$DNS_PROVIDER_NAME" "$DOMAINS" "$ALIASES"; then
+            if acme_renew "$ACME_PROVIDER_NAME" "$ACME_TERMS_ACCEPTED" "$ALIASES"; then
                 bashio::log.info "[DDNS-ACME - Add-On]" "ACME renew succeeded."
             else
                 bashio::log.warning "[DDNS-ACME - Add-On ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "ACME renew failed."

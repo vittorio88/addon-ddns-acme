@@ -14,16 +14,17 @@ cat > "$CONFIG_PATH" <<'JSON'
   "acme_renew_wait": 43200,
   "certfile": "fullchain.pem",
   "keyfile": "privkey.pem",
-  "dns_provider_name": "dynu",
-  "dns_api_token": "legacy-token",
   "ipv4_update_method": "use fixed address",
   "ipv4_fixed": "203.0.113.10",
   "ipv6_update_method": "skip update",
   "ipv6_fixed": "",
   "ip_update_wait_seconds": 3600,
-  "domains": ["one.example.com", "two.example.com"],
   "aliases": [],
-  "log_level": "info"
+  "log_level": "info",
+  "dns_accounts": [
+    {"provider": "dynu", "token": "dynu-business-a-token", "domains": ["biz-a.example.com", "www.biz-a.example.com"]},
+    {"provider": "dynu", "token": "dynu-business-b-token", "domains": ["biz-b.example.net"]}
+  ]
 }
 JSON
 
@@ -49,7 +50,7 @@ function dns_duckdns_update() { printf 'duckdns|token=%s|domain=%s|ipv4=%s|ipv6=
 hassio_get_config_variables
 update_dns_ip_addresses "203.0.113.10" ""
 
-expected=$'dynu|token=legacy-token|domain=one.example.com|ipv4=203.0.113.10|ipv6=\ndynu|token=legacy-token|domain=two.example.com|ipv4=203.0.113.10|ipv6='
+expected=$'dynu|token=dynu-business-a-token|domain=biz-a.example.com|ipv4=203.0.113.10|ipv6=\ndynu|token=dynu-business-a-token|domain=www.biz-a.example.com|ipv4=203.0.113.10|ipv6=\ndynu|token=dynu-business-b-token|domain=biz-b.example.net|ipv4=203.0.113.10|ipv6='
 actual=$(cat "$CALLS")
 if [ "$actual" != "$expected" ]; then
   echo "expected:" >&2
@@ -59,4 +60,4 @@ if [ "$actual" != "$expected" ]; then
   exit 1
 fi
 
-echo "PASS legacy multi-domain DDNS dispatch"
+echo "PASS same-provider multiple DNS accounts DDNS dispatch"

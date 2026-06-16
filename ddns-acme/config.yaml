@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: DDNS-ACME add-on
-version: "2.1.0"
+version: "3.0.0"
 slug: ddns-acme
 description: DDNS-ACME add-on
 url: "https://github.com/vittorio88/addon-ddns-acme/tree/main/ddns-acme"
@@ -21,14 +21,11 @@ options:
   acme_renew_wait: 43200
   certfile: "fullchain.pem"
   keyfile: "privkey.pem"
-  dns_provider_name: "dynu"
-  dns_api_token: null
   ipv4_update_method: "query external server"
   ipv4_fixed: ""
   ipv6_update_method: "get interface address via bashio"
   ipv6_fixed: "" 
   ip_update_wait_seconds: 3600
-  domains: []
   dns_accounts: []
   aliases: []
   log_level: "info"
@@ -38,14 +35,11 @@ schema:
   acme_renew_wait: "int"
   certfile: "str"
   keyfile: "str"
-  dns_provider_name: list(dynu|duckdns)
-  dns_api_token: "str"
   ipv4_update_method: list(skip update|query external server|get interface address via bashio|use fixed address)
   ipv4_fixed: "str?"
   ipv6_update_method: list(skip update|query external server|get interface address via bashio|use fixed address)
   ipv6_fixed: "str?"
   ip_update_wait_seconds: "int"
-  domains: ["str"]
   dns_accounts:
     [{provider: list(dynu|duckdns), token: "str", domains: ["str"]}]
   aliases:

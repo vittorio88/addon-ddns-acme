@@ -190,25 +190,42 @@ function hassio_determine_ipv6_address(){
     esac
 }
 
-function build_dns_accounts_json() {
-    if jq -e '(.dns_accounts // []) | length > 0' "$CONFIG_PATH" >/dev/null; then
-        DNS_ACCOUNTS_JSON=$(jq -c '[.dns_accounts[] | {provider: .provider, token: .token, domains: (.domains // [])}]' "$CONFIG_PATH")
-    else
-        DNS_ACCOUNTS_JSON=$(jq -cn \
-            --arg provider "$DNS_PROVIDER_NAME" \
-            --arg token "$DNS_API_TOKEN" \
-            --arg domains "$DOMAINS" \
-            '[{provider: $provider, token: $token, domains: ($domains | split("\n") | map(select(length > 0)))}]')
+function detect_legacy_dns_config() {
+    local legacy_fields
+    legacy_fields=$(jq -r '
+        [
+            (if ((.dns_provider_name // "") | tostring | length) > 0 then "dns_provider_name" else empty end),
+            (if ((.dns_api_token // "") | tostring | length) > 0 then "dns_api_token" else empty end),
+            (if ((.domains // []) | length) > 0 then "domains" else empty end)
+        ] | join(", ")
+    ' "$CONFIG_PATH")
+
+    if [ -n "$legacy_fields" ]; then
+        bashio::log.error "🚫 Old-style DNS configuration detected: ${legacy_fields}"
+        bashio::log.error "💥 Breaking change in DDNS-ACME 3.0.0: replace legacy dns_provider_name/dns_api_token/domains with dns_accounts[]."
+        bashio::log.error "Example: dns_accounts: [{provider: dynu, token: <token>, domains: [example.com]}]"
+        return 1
     fi
+
+    return 0
+}
+
+function build_dns_accounts_json() {
+    if ! detect_legacy_dns_config; then
+        return 1
+    fi
+
+    if ! jq -e '(.dns_accounts // []) | length > 0' "$CONFIG_PATH" >/dev/null; then
+        bashio::log.error "dns_accounts is required; DDNS-ACME 3.0.0 no longer supports legacy DNS configuration"
+        return 1
+    fi
+
+    DNS_ACCOUNTS_JSON=$(jq -c '[.dns_accounts[] | {provider: .provider, token: .token, domains: (.domains // [])}]' "$CONFIG_PATH")
     export DNS_ACCOUNTS_JSON
 }
 
 function configured_domains() {
-    if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
-        jq -r '.[].domains[]' <<< "$DNS_ACCOUNTS_JSON"
-    else
-        printf '%s\n' "$DOMAINS"
-    fi
+    jq -r '.[].domains[]' <<< "$DNS_ACCOUNTS_JSON"
 }
 
 function validate_dns_accounts() {
@@ -270,9 +287,8 @@ function hassio_get_config_variables(){
     fi
     if bashio::config.has_value "aliases"; then ALIASES=$(bashio::config 'aliases'); else ALIASES=""; fi
 
-    DNS_PROVIDER_NAME=$(bashio::config 'dns_provider_name')
-    DNS_API_TOKEN=$(bashio::config 'dns_api_token')
-    DOMAINS=$(bashio::config 'domains')
+    DNS_PROVIDER_NAME=""
+    DNS_API_TOKEN=""
     IP_UPDATE_WAIT_SECONDS=$(bashio::config 'ip_update_wait_seconds')
     ACME_PROVIDER_NAME=$(bashio::config 'acme_provider_name')
     ACME_TERMS_ACCEPTED=$(bashio::config 'acme_accept_terms')
@@ -284,7 +300,9 @@ function hassio_get_config_variables(){
         bashio::log.info "Log level set to: ${LOG_LEVEL}"
     fi
 
-    build_dns_accounts_json
+    if ! build_dns_accounts_json; then
+        return 1
+    fi
     if ! validate_dns_accounts; then
         return 1
     fi
@@ -302,10 +320,10 @@ function hassio_get_config_variables(){
     done
 
     # Check if /data/options.json is healthy
-    if jq -e '((.domains // []) | length > 0) or ((.dns_accounts // []) | length > 0)' "$CONFIG_PATH" >/dev/null; then
-        bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "DNS domain configuration is present"
+    if jq -e '(.dns_accounts // []) | length > 0' "$CONFIG_PATH" >/dev/null; then
+        bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "DNS account configuration is present"
     else
-        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "No domains or dns_accounts configured"
+        bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "No dns_accounts configured"
         return 1
     fi
 
@@ -346,8 +364,7 @@ function update_dns_ip_addresses(){
         bashio::log.debug "IPv6 update is skipped, using empty IPv6 address"
     fi
 
-    # Update each domain for each configured DNS account. Legacy config is normalized
-    # into a single account by build_dns_accounts_json().
+    # Update each domain for each configured DNS account.
     local original_dns_api_token="$DNS_API_TOKEN"
     local original_dns_provider_name="$DNS_PROVIDER_NAME"
     local account account_provider account_token domain

@@ -15,10 +15,8 @@ SYS_KEYFILE=$(jq --raw-output '.keyfile' "$CONFIG_PATH")
 get_dns_accounts_json() {
     if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
         printf '%s\n' "$DNS_ACCOUNTS_JSON"
-    elif jq -e '(.dns_accounts // []) | length > 0' "$CONFIG_PATH" >/dev/null; then
-        jq -c '[.dns_accounts[] | {provider: .provider, token: .token, domains: (.domains // [])}]' "$CONFIG_PATH"
     else
-        jq -c '[{provider: .dns_provider_name, token: .dns_api_token, domains: (.domains // [])}]' "$CONFIG_PATH"
+        jq -c '[.dns_accounts[] | {provider: .provider, token: .token, domains: (.domains // [])}]' "$CONFIG_PATH"
     fi
 }
 
@@ -80,8 +78,8 @@ deploy_challenge() {
             ;;
     esac
 
-    bashio::log.info "[${FUNCNAME[0]}] Settling down for 10s..."
-    sleep 10
+    bashio::log.info "[${FUNCNAME[0]}] Settling down for 90s to allow DNS TXT propagation..."
+    sleep 90
 }
 
 clean_challenge() {

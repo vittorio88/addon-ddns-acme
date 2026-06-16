@@ -1,5 +1,21 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [3.0.0] - 2026-06-15
+
+### 💥 Breaking changes
+- `dns_accounts` is now the only supported DNS provider/account configuration path.
+- Multiple accounts may use the same provider, such as two separate Dynu accounts for two businesses sharing one IP.
+- Legacy top-level `dns_provider_name`, `dns_api_token`, and `domains` config is no longer supported.
+- Old-style DNS configs are detected at startup; the add-on fails safely and logs a clear migration error instead of running with ambiguous credentials.
+- ACME DNS-01 challenge handling now always uses the multi-provider hook dispatcher.
+
+### ✅ Fixed
+- Remove stale Dynu `_acme-challenge` TXT records before publishing a new ACME DNS-01 token.
+- Increase DNS-01 challenge settle time to 90 seconds to match the Dynu TXT TTL and avoid Let's Encrypt seeing a previous token.
+
+### 🧹 Removed
+- Remove the old single-provider ACME hooks.
+
 ## [2.1.0] - 2026-06-15
 
 ### Added
@@ -9,8 +25,6 @@
 
 ### Changed
 - Keep the existing `dns_provider_name`, `dns_api_token`, and `domains` options as a backward-compatible legacy single-account configuration.
-
-## [2.0.1] - 2026-06-15
 
 ### Fixed
 - Fix multi-domain DDNS handling for newline-delimited Home Assistant `domains` lists.

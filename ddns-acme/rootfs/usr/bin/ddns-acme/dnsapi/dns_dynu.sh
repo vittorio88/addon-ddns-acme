@@ -65,6 +65,12 @@ dns_dynu_add_txt_record() {
     return 1
   fi
 
+  bashio::log.info "Removing stale TXT records for _acme-challenge.$fulldomain before deploying a new challenge."
+  if ! _delete_txt_records_for_host "$fulldomain"; then
+    bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Could not remove stale TXT records before deploying challenge."
+    return 1
+  fi
+
   bashio::log.debug "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Creating TXT record."
   if ! _dynu_rest POST "dns/$domain_id/record" "{\"domainId\":\"$domain_id\",\"nodeName\":\"_acme-challenge\",\"recordType\":\"TXT\",\"textData\":\"$txtvalue\",\"state\":true,\"ttl\":90}"; then
     bashio::log.error "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] Args: $@" "Dynu Rest API call failed."
@@ -225,6 +231,39 @@ function _set_domain_config(){
         return 1
     fi
 
+}
+
+
+_delete_txt_records_for_host() {
+  local fulldomain="$1"
+  local challenge_hostname="_acme-challenge.$fulldomain"
+  local record_ids
+
+  if ! _dynu_rest GET "dns/$domain_id/record" ""; then
+    return 1
+  fi
+
+  record_ids=$(printf "%s" "$response" | jq -r --arg host "$challenge_hostname" '
+    (.dnsRecords // .records // [])[]
+    | select((.recordType == "TXT" or .recordType == 16 or (.recordType|tostring|ascii_upcase == "TXT"))
+        and ((.hostname // "") == $host or (.nodeName // "") == "_acme-challenge"))
+    | .id
+  ')
+
+  if [ -z "$record_ids" ]; then
+    bashio::log.debug "No stale TXT records found for $challenge_hostname"
+    return 0
+  fi
+
+  while IFS= read -r stale_record_id; do
+    [ -z "$stale_record_id" ] && continue
+    bashio::log.info "Removing stale TXT record $stale_record_id for $challenge_hostname"
+    if ! _delete_record "$domain_id" "$stale_record_id"; then
+      return 1
+    fi
+  done <<< "$record_ids"
+
+  return 0
 }
 
 _get_record_id() {

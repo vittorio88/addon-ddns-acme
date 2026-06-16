@@ -28,17 +28,25 @@ options:
   acme_renew_wait: 43200
   certfile: fullchain.pem
   keyfile: privkey.pem
-  dns_provider_name: dynu
-  dns_api_token: 5535U5bZ74Wcc4UU64d366g57edbdc64
   ipv4_update_method: query external server
   ipv4_fixed: ""  # Only needed when ipv4_update_method is "use fixed address"
   ipv6_update_method: get interface address via bashio
   ipv6_fixed: ""  # Only needed when ipv6_update_method is "use fixed address"
   ip_update_wait_seconds: 3600
-  domains: ["my-domain.dynudns.org"]
+  dns_accounts:
+    - provider: dynu
+      token: your-dynu-api-token
+      domains:
+        - my-domain.dynudns.org
+    - provider: duckdns
+      token: your-duckdns-token
+      domains:
+        - my-domain.duckdns.org
   aliases: []
   log_level: info
 ```
+
+`dns_accounts` is required. Each account selects one DNS provider, token, and the domains managed by that provider. Legacy top-level `dns_provider_name`, `dns_api_token`, and `domains` options are no longer supported.
 
 Additionally, you'll need to configure the Home Assistant Core to pick up the SSL certificates. This is done by setting the following configuration for the [HTTP][HTTP] integration configuration in your `configuration.yaml`:
 
@@ -102,17 +110,13 @@ Specifies the fixed IPv6 address to use for DNS updates. This field can be left 
 
 Example: `2001:db8::1`
 
-#### Option `dns_api_token`
+#### Option `dns_accounts`
 
-The API Token for your DNS Provider
+Required list of DNS provider accounts. Each item contains:
 
-#### Option `dns_provider_name`
-
-The name of your dns provider, for example: dynu
-
-### Option: `domains`
-
-A list of DynuDNS subdomains registered under your account.
+- `provider`: DNS provider name, currently `dynu` or `duckdns`.
+- `token`: API token for that provider account.
+- `domains`: domains managed by that provider account.
 
 #### Option: `aliases` (optional)
 
