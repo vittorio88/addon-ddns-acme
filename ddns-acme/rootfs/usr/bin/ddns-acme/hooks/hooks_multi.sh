@@ -10,8 +10,8 @@ source "$DIR/../dnsapi/dns_dynu.sh"
 source "$DIR/../dnsapi/dns_duckdns.sh"
 source "$DIR/../dnsapi/dns_cloudflare.sh"
 
-SYS_CERTFILE=$(jq --raw-output '.certfile' "$CONFIG_PATH")
-SYS_KEYFILE=$(jq --raw-output '.keyfile' "$CONFIG_PATH")
+SYS_CERTFILE=$(jq --raw-output '.certfile // "fullchain.pem"' "$CONFIG_PATH")
+SYS_KEYFILE=$(jq --raw-output '.keyfile // "privkey.pem"' "$CONFIG_PATH")
 
 get_dns_accounts_json() {
     if [ -n "${DNS_ACCOUNTS_JSON:-}" ]; then
@@ -28,7 +28,7 @@ get_alias_for_domain() {
 
 load_account_for_domain() {
     local domain="$1"
-    local accounts
+    local accounts account_json
     accounts=$(get_dns_accounts_json)
     account_json=$(jq -c --arg domain "$domain" '.[] | select(.domains[]? == $domain)' <<< "$accounts" | head -n 1)
 
@@ -112,6 +112,7 @@ clean_challenge() {
 
 deploy_cert() {
     local DOMAIN="${1}" KEYFILE="${2}" CERTFILE="${3}" FULLCHAINFILE="${4}" CHAINFILE="${5}" TIMESTAMP="${6}"
+    bashio::log.info "[${FUNCNAME[0]}] Installing certificate for $DOMAIN to /ssl/$SYS_CERTFILE and /ssl/$SYS_KEYFILE"
     cp -f "$FULLCHAINFILE" "/ssl/$SYS_CERTFILE"
     cp -f "$KEYFILE" "/ssl/$SYS_KEYFILE"
 }

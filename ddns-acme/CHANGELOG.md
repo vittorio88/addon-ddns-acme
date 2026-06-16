@@ -1,10 +1,16 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [3.2.0] - 2026-06-16
+
+### Changed
+- Skip ACME orders when the installed `/ssl/<certfile>` already exists, parses, has at least 30 days of validity remaining, and exactly matches the configured DNS names. This reduces unnecessary Let's Encrypt production traffic and avoids hammering rate limits.
+- Defer ACME account registration until an actual certificate order is needed, so restarts with an already-valid certificate avoid both new orders and new account registrations.
+
 ## [3.1.0] - 2026-06-15
 
 ### Added
 - Add Cloudflare as a supported `dns_accounts[].provider` for DDNS A/AAAA updates.
-- Add Cloudflare DNS-01 TXT challenge deployment and cleanup through the multi-provider ACME hook dispatcher.
+- Add Cloudflare DNS-01 TXT challenge deployment and cleanup through the ACME hook dispatcher.
 
 ## [3.0.0] - 2026-06-15
 
