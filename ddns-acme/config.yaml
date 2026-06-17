@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: DDNS-ACME add-on
-version: "3.2.0"
+version: "3.3.0"
 slug: ddns-acme
 description: Dynamic DNS updates and Lets Encrypt certificates via DNS-01
 url: "https://github.com/vittorio88/addon-ddns-acme/tree/main/ddns-acme"

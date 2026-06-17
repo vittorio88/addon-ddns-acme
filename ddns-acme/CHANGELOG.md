@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [3.3.0] - 2026-06-16
+
+### Fixed
+- Record the ACME operation timestamp when `dehydrated` fails, so rate-limited or otherwise failed certificate orders respect the configured retry interval instead of retrying immediately after restart or loop iteration.
+
+
 ## [3.2.0] - 2026-06-16
 
 ### Changed
