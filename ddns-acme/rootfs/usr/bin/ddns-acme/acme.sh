@@ -197,7 +197,7 @@ function acme_renew() {
     fi
 
     if ! certificate_needs_renewal "$certfile" "${domain_array[@]}"; then
-        bashio::log.info "Skipping ACME; /ssl/${certfile} is valid and covers: ${domain_array[*]}"
+        bashio::log.info "Skipping ACME; /ssl/${certfile} SAN set exactly matches configured domains: ${domain_array[*]}"
         echo "$(date +%s)" > "${LAST_ACME_OP_FILE}"
         return 0
     fi
@@ -213,6 +213,7 @@ function acme_renew() {
         return 0
     else
         bashio::log.warning "[${FUNCNAME[0]} ${BASH_SOURCE[0]}:${LINENO}] [Args: $@]" "dehydrated did not complete successfully."
+        echo "$(date +%s)" > "${LAST_ACME_OP_FILE}"
         return 1
     fi
 }
